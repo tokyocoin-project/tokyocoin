@@ -1,0 +1,33 @@
+# /etc/conf.d/tokyocoind: config file for /etc/init.d/tokyocoind
+
+# Config file location
+#TOKYOCOIND_CONFIGFILE="/etc/tokyocoin/tokyocoin.conf"
+
+# What directory to write pidfile to?  (created and owned by $TOKYOCOIND_USER)
+#TOKYOCOIND_PIDDIR="/var/run/tokyocoind"
+
+# What filename to give the pidfile
+#TOKYOCOIND_PIDFILE="${TOKYOCOIND_PIDDIR}/tokyocoind.pid"
+
+# Where to write tokyocoind data (be mindful that the blockchain is large)
+#TOKYOCOIND_DATADIR="/var/lib/tokyocoind"
+
+# User and group to own tokyocoind process
+#TOKYOCOIND_USER="tokyocoin"
+#TOKYOCOIND_GROUP="tokyocoin"
+
+# Path to tokyocoind executable
+#TOKYOCOIND_BIN="/usr/bin/tokyocoind"
+
+# Nice value to run tokyocoind under
+#TOKYOCOIND_NICE=0
+
+# Additional options (avoid -conf and -datadir, use flags above)
+#TOKYOCOIND_OPTS=""
+
+# The timeout in seconds OpenRC will wait for tokyocoind to terminate
+# after a SIGTERM has been raised.
+# Note that this will be mapped as argument to start-stop-daemon's
+# '--retry' option, which means you can specify a retry schedule
+# here. For more information see man 8 start-stop-daemon.
+TOKYOCOIND_SIGTERM_TIMEOUT=600

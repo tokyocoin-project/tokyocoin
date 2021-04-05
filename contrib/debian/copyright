@@ -1,13 +1,13 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Bitcoin
+Upstream-Name: Tokyocoin
 Upstream-Contact: Satoshi Nakamoto <satoshin@gmx.com>
- irc://#bitcoin@freenode.net
-Source: https://github.com/bitcoin/bitcoin
+ irc://#tokyocoin@freenode.net
+Source: https://github.com/tokyocoin/tokyocoin
 
 Files: *
-Copyright: 2009-2021, Bitcoin Core Developers
+Copyright: 2009-2020, Tokyocoin Core Developers
 License: Expat
-Comment: The Bitcoin Core Developers encompasses the current developers listed on bitcoin.org,
+Comment: The Tokyocoin Core Developers encompasses the current developers listed on tokyocoin.org,
          as well as the numerous contributors to the project.
 
 Files: debian/*
@@ -75,21 +75,17 @@ Copyright: Stephen Hutchings, Jonas Schnelli
 License: Expat
 Comment: Modifications of Stephen Hutchings' Typicons
 
-Files: src/qt/res/icons/bitcoin.*
-       share/pixmaps/bitcoin*
-       src/qt/res/src/bitcoin.svg
+Files: src/qt/res/icons/tokyocoin.*
+       share/pixmaps/tokyocoin*
+       src/qt/res/src/tokyocoin.svg
 Copyright: Bitboy, Jonas Schnelli
 License: public-domain
-Comment: Site: https://bitcointalk.org/?topic=1756.0
+Comment: Site: https://tokyocointalk.org/?topic=1756.0
 
 Files: src/qt/res/icons/proxy.png
        src/qt/res/src/proxy.svg
 Copyright: Cristian Mircea Messel
 License: public-domain
-
-Files: src/qt/res/fonts/RobotoMono-Bold.ttf
-License: Apache-2.0
-Comment: Site: https://fonts.google.com/specimen/Roboto+Mono
 
 
 License: Expat
@@ -148,14 +144,3 @@ Comment:
 
 License: public-domain
  This work is in the public domain.
-
-License: Apache-2.0
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
- http://www.apache.org/licenses/LICENSE-2.0
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.

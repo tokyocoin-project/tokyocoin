@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 The Bitcoin Core developers
+// Copyright (c) 2014-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,18 +13,6 @@
 
 /* Define a virtual block time, one block per 10 minutes after Nov 14 2014, 0:55:36am */
 static int32_t TestTime(int nHeight) { return 1415926536 + 600 * nHeight; }
-
-static const std::string StateName(ThresholdState state)
-{
-    switch (state) {
-    case ThresholdState::DEFINED:   return "DEFINED";
-    case ThresholdState::STARTED:   return "STARTED";
-    case ThresholdState::LOCKED_IN: return "LOCKED_IN";
-    case ThresholdState::ACTIVE:    return "ACTIVE";
-    case ThresholdState::FAILED:    return "FAILED";
-    } // no default case, so the compiler can warn about missing cases
-    return "";
-}
 
 static const Consensus::Params paramsDummy = Consensus::Params();
 
@@ -50,13 +38,6 @@ public:
     int64_t BeginTime(const Consensus::Params& params) const override { return Consensus::BIP9Deployment::ALWAYS_ACTIVE; }
 };
 
-class TestNeverActiveConditionChecker : public TestConditionChecker
-{
-public:
-    int64_t BeginTime(const Consensus::Params& params) const override { return 0; }
-    int64_t EndTime(const Consensus::Params& params) const override { return 1230768000; }
-};
-
 #define CHECKERS 6
 
 class VersionBitsTester
@@ -70,8 +51,6 @@ class VersionBitsTester
     TestConditionChecker checker[CHECKERS];
     // Another 6 that assume always active activation
     TestAlwaysActiveConditionChecker checker_always[CHECKERS];
-    // Another 6 that assume never active activation
-    TestNeverActiveConditionChecker checker_never[CHECKERS];
 
     // Test counter (to identify failures)
     int num;
@@ -86,7 +65,6 @@ public:
         for (unsigned int  i = 0; i < CHECKERS; i++) {
             checker[i] = TestConditionChecker();
             checker_always[i] = TestAlwaysActiveConditionChecker();
-            checker_never[i] = TestNeverActiveConditionChecker();
         }
         vpblock.clear();
         return *this;
@@ -114,40 +92,66 @@ public:
             if (InsecureRandBits(i) == 0) {
                 BOOST_CHECK_MESSAGE(checker[i].GetStateSinceHeightFor(vpblock.empty() ? nullptr : vpblock.back()) == height, strprintf("Test %i for StateSinceHeight", num));
                 BOOST_CHECK_MESSAGE(checker_always[i].GetStateSinceHeightFor(vpblock.empty() ? nullptr : vpblock.back()) == 0, strprintf("Test %i for StateSinceHeight (always active)", num));
-
-                // never active may go from DEFINED -> FAILED at the first period
-                const auto never_height = checker_never[i].GetStateSinceHeightFor(vpblock.empty() ? nullptr : vpblock.back());
-                BOOST_CHECK_MESSAGE(never_height == 0 || never_height == checker_never[i].Period(paramsDummy), strprintf("Test %i for StateSinceHeight (never active)", num));
             }
         }
         num++;
         return *this;
     }
 
-    VersionBitsTester& TestState(ThresholdState exp) {
+    VersionBitsTester& TestDefined() {
         for (int i = 0; i < CHECKERS; i++) {
             if (InsecureRandBits(i) == 0) {
-                const CBlockIndex* pindex = vpblock.empty() ? nullptr : vpblock.back();
-                ThresholdState got = checker[i].GetStateFor(pindex);
-                ThresholdState got_always = checker_always[i].GetStateFor(pindex);
-                ThresholdState got_never = checker_never[i].GetStateFor(pindex);
-                // nHeight of the next block. If vpblock is empty, the next (ie first)
-                // block should be the genesis block with nHeight == 0.
-                int height = pindex == nullptr ? 0 : pindex->nHeight + 1;
-                BOOST_CHECK_MESSAGE(got == exp, strprintf("Test %i for %s height %d (got %s)", num, StateName(exp), height, StateName(got)));
-                BOOST_CHECK_MESSAGE(got_always == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE height %d (got %s; always active case)", num, height, StateName(got_always)));
-                BOOST_CHECK_MESSAGE(got_never == ThresholdState::DEFINED|| got_never == ThresholdState::FAILED, strprintf("Test %i for DEFINED/FAILED height %d (got %s; never active case)", num, height, StateName(got_never)));
+                BOOST_CHECK_MESSAGE(checker[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::DEFINED, strprintf("Test %i for DEFINED", num));
+                BOOST_CHECK_MESSAGE(checker_always[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE (always active)", num));
             }
         }
         num++;
         return *this;
     }
 
-    VersionBitsTester& TestDefined() { return TestState(ThresholdState::DEFINED); }
-    VersionBitsTester& TestStarted() { return TestState(ThresholdState::STARTED); }
-    VersionBitsTester& TestLockedIn() { return TestState(ThresholdState::LOCKED_IN); }
-    VersionBitsTester& TestActive() { return TestState(ThresholdState::ACTIVE); }
-    VersionBitsTester& TestFailed() { return TestState(ThresholdState::FAILED); }
+    VersionBitsTester& TestStarted() {
+        for (int i = 0; i < CHECKERS; i++) {
+            if (InsecureRandBits(i) == 0) {
+                BOOST_CHECK_MESSAGE(checker[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::STARTED, strprintf("Test %i for STARTED", num));
+                BOOST_CHECK_MESSAGE(checker_always[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE (always active)", num));
+            }
+        }
+        num++;
+        return *this;
+    }
+
+    VersionBitsTester& TestLockedIn() {
+        for (int i = 0; i < CHECKERS; i++) {
+            if (InsecureRandBits(i) == 0) {
+                BOOST_CHECK_MESSAGE(checker[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::LOCKED_IN, strprintf("Test %i for LOCKED_IN", num));
+                BOOST_CHECK_MESSAGE(checker_always[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE (always active)", num));
+            }
+        }
+        num++;
+        return *this;
+    }
+
+    VersionBitsTester& TestActive() {
+        for (int i = 0; i < CHECKERS; i++) {
+            if (InsecureRandBits(i) == 0) {
+                BOOST_CHECK_MESSAGE(checker[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE", num));
+                BOOST_CHECK_MESSAGE(checker_always[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE (always active)", num));
+            }
+        }
+        num++;
+        return *this;
+    }
+
+    VersionBitsTester& TestFailed() {
+        for (int i = 0; i < CHECKERS; i++) {
+            if (InsecureRandBits(i) == 0) {
+                BOOST_CHECK_MESSAGE(checker[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::FAILED, strprintf("Test %i for FAILED", num));
+                BOOST_CHECK_MESSAGE(checker_always[i].GetStateFor(vpblock.empty() ? nullptr : vpblock.back()) == ThresholdState::ACTIVE, strprintf("Test %i for ACTIVE (always active)", num));
+            }
+        }
+        num++;
+        return *this;
+    }
 
     CBlockIndex * Tip() { return vpblock.size() ? vpblock.back() : nullptr; }
 };

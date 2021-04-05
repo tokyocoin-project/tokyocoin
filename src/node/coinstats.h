@@ -1,10 +1,10 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2019 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_COINSTATS_H
-#define BITCOIN_NODE_COINSTATS_H
+#ifndef TOKYOCOIN_NODE_COINSTATS_H
+#define TOKYOCOIN_NODE_COINSTATS_H
 
 #include <amount.h>
 #include <uint256.h>
@@ -12,12 +12,10 @@
 #include <cstdint>
 #include <functional>
 
-class BlockManager;
 class CCoinsView;
 
 enum class CoinStatsHashType {
     HASH_SERIALIZED,
-    MUHASH,
     NONE,
 };
 
@@ -37,6 +35,6 @@ struct CCoinsStats
 };
 
 //! Calculate statistics about the unspent transaction output set
-bool GetUTXOStats(CCoinsView* view, BlockManager& blockman, CCoinsStats& stats, const CoinStatsHashType hash_type, const std::function<void()>& interruption_point = {});
+bool GetUTXOStats(CCoinsView* view, CCoinsStats& stats, const CoinStatsHashType hash_type, const std::function<void()>& interruption_point = {});
 
-#endif // BITCOIN_NODE_COINSTATS_H
+#endif // TOKYOCOIN_NODE_COINSTATS_H

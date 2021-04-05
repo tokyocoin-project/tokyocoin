@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -106,7 +106,8 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     std::vector<valtype> vSolutions;
     whichTypeRet = Solver(scriptPubKey, vSolutions);
 
-    switch (whichTypeRet) {
+    switch (whichTypeRet)
+    {
     case TxoutType::NONSTANDARD:
     case TxoutType::NULL_DATA:
     case TxoutType::WITNESS_UNKNOWN:
@@ -172,8 +173,10 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
         // Could not find witnessScript, add to missing
         sigdata.missing_witness_script = uint256(vSolutions[0]);
         return false;
-    } // no default case, so the compiler can warn about missing cases
-    assert(false);
+
+    default:
+        return false;
+    }
 }
 
 static CScript PushAll(const std::vector<valtype>& values)
@@ -385,7 +388,7 @@ bool SignSignature(const SigningProvider &provider, const CScript& fromPubKey, C
 bool SignSignature(const SigningProvider &provider, const CTransaction& txFrom, CMutableTransaction& txTo, unsigned int nIn, int nHashType)
 {
     assert(nIn < txTo.vin.size());
-    const CTxIn& txin = txTo.vin[nIn];
+    CTxIn& txin = txTo.vin[nIn];
     assert(txin.prevout.n < txFrom.vout.size());
     const CTxOut& txout = txFrom.vout[txin.prevout.n];
 

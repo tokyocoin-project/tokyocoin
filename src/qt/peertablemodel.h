@@ -1,9 +1,9 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_PEERTABLEMODEL_H
-#define BITCOIN_QT_PEERTABLEMODEL_H
+#ifndef TOKYOCOIN_QT_PEERTABLEMODEL_H
+#define TOKYOCOIN_QT_PEERTABLEMODEL_H
 
 #include <net_processing.h> // For CNodeStateStats
 #include <net.h>
@@ -28,7 +28,6 @@ struct CNodeCombinedStats {
     CNodeStateStats nodeStateStats;
     bool fNodeStateStatsAvailable;
 };
-Q_DECLARE_METATYPE(CNodeCombinedStats*)
 
 class NodeLessThan
 {
@@ -53,23 +52,18 @@ class PeerTableModel : public QAbstractTableModel
 public:
     explicit PeerTableModel(interfaces::Node& node, QObject* parent);
     ~PeerTableModel();
+    const CNodeCombinedStats *getNodeStats(int idx);
     int getRowByNodeId(NodeId nodeid);
     void startAutoRefresh();
     void stopAutoRefresh();
 
     enum ColumnIndex {
         NetNodeId = 0,
-        Address,
-        ConnectionType,
-        Network,
-        Ping,
-        Sent,
-        Received,
-        Subversion
-    };
-
-    enum {
-        StatsRole = Qt::UserRole,
+        Address = 1,
+        Ping = 2,
+        Sent = 3,
+        Received = 4,
+        Subversion = 5
     };
 
     /** @name Methods overridden from QAbstractTableModel
@@ -88,9 +82,9 @@ public Q_SLOTS:
 
 private:
     interfaces::Node& m_node;
-    const QStringList columns{tr("Peer Id"), tr("Address"), tr("Type"), tr("Network"), tr("Ping"), tr("Sent"), tr("Received"), tr("User Agent")};
+    QStringList columns;
     std::unique_ptr<PeerTablePriv> priv;
     QTimer *timer;
 };
 
-#endif // BITCOIN_QT_PEERTABLEMODEL_H
+#endif // TOKYOCOIN_QT_PEERTABLEMODEL_H

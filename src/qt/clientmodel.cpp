@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,7 +19,6 @@
 #include <validation.h>
 
 #include <stdint.h>
-#include <functional>
 
 #include <QDebug>
 #include <QThread>
@@ -71,14 +70,14 @@ ClientModel::~ClientModel()
 
 int ClientModel::getNumConnections(unsigned int flags) const
 {
-    ConnectionDirection connections = ConnectionDirection::None;
+    CConnman::NumConnections connections = CConnman::CONNECTIONS_NONE;
 
     if(flags == CONNECTIONS_IN)
-        connections = ConnectionDirection::In;
+        connections = CConnman::CONNECTIONS_IN;
     else if (flags == CONNECTIONS_OUT)
-        connections = ConnectionDirection::Out;
+        connections = CConnman::CONNECTIONS_OUT;
     else if (flags == CONNECTIONS_ALL)
-        connections = ConnectionDirection::Both;
+        connections = CConnman::CONNECTIONS_ALL;
 
     return m_node.getNodeCount(connections);
 }

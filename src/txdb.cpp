@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,6 +10,7 @@
 #include <random.h>
 #include <shutdown.h>
 #include <uint256.h>
+#include <util/memory.h>
 #include <util/system.h>
 #include <util/translation.h>
 #include <util/vector.h>
@@ -40,21 +41,17 @@ struct CoinEntry {
 }
 
 CCoinsViewDB::CCoinsViewDB(fs::path ldb_path, size_t nCacheSize, bool fMemory, bool fWipe) :
-    m_db(std::make_unique<CDBWrapper>(ldb_path, nCacheSize, fMemory, fWipe, true)),
+    m_db(MakeUnique<CDBWrapper>(ldb_path, nCacheSize, fMemory, fWipe, true)),
     m_ldb_path(ldb_path),
     m_is_memory(fMemory) { }
 
 void CCoinsViewDB::ResizeCache(size_t new_cache_size)
 {
-    // We can't do this operation with an in-memory DB since we'll lose all the coins upon
-    // reset.
-    if (!m_is_memory) {
-        // Have to do a reset first to get the original `m_db` state to release its
-        // filesystem lock.
-        m_db.reset();
-        m_db = std::make_unique<CDBWrapper>(
-            m_ldb_path, new_cache_size, m_is_memory, /*fWipe*/ false, /*obfuscate*/ true);
-    }
+    // Have to do a reset first to get the original `m_db` state to release its
+    // filesystem lock.
+    m_db.reset();
+    m_db = MakeUnique<CDBWrapper>(
+        m_ldb_path, new_cache_size, m_is_memory, /*fWipe*/ false, /*obfuscate*/ true);
 }
 
 bool CCoinsViewDB::GetCoin(const COutPoint &outpoint, Coin &coin) const {
@@ -274,8 +271,14 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
-                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams))
-                    return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
+                // Tokyocoin: Disable PoW Sanity check while loading block index from disk.
+                // We use the sha256 hash for the block index for performance reasons, which is recorded for later use.
+                // CheckProofOfWork() uses the Trappist hash which is discarded after a block is accepted.
+                // While it is technically feasible to verify the PoW, doing so takes several minutes as it
+                // requires recomputing every PoW hash during every Tokyocoin startup.
+                // We opt instead to simply trust the data that is on your local disk
+                // if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams))
+                //    return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
 
                 pcursor->Next();
             } else {

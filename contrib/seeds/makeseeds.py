@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2013-2020 The Bitcoin Core developers
+# Copyright (c) 2013-2020 The Tokyocoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
@@ -27,7 +27,7 @@ PATTERN_IPV4 = re.compile(r"^((\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})):(\d+)$
 PATTERN_IPV6 = re.compile(r"^\[([0-9a-z:]+)\]:(\d+)$")
 PATTERN_ONION = re.compile(r"^([abcdefghijklmnopqrstuvwxyz234567]{16}\.onion):(\d+)$")
 PATTERN_AGENT = re.compile(
-    r"^/Satoshi:("
+    r"^/Hachiko:("
     r"0.14.(0|1|2|3|99)|"
     r"0.15.(0|1|2|99)|"
     r"0.16.(0|1|2|3|99)|"
@@ -136,7 +136,7 @@ def lookup_asn(net, ip):
             ipaddr = res.rstrip('.')            # 2.0.0.1.4.8.6.0.b.0.0.2.0.0.2.3
             prefix = '.origin6'
 
-        asn = int([x.to_text() for x in dns.resolver.resolve('.'.join(
+        asn = int([x.to_text() for x in dns.resolver.query('.'.join(
                    reversed(ipaddr.split('.'))) + prefix + '.asn.cymru.com',
                    'TXT').response.answer][0].split('\"')[1].split(' ')[0])
         return asn
@@ -210,9 +210,9 @@ def main():
     print('%s Require a known and recent user agent' % (ip_stats(ips)), file=sys.stderr)
     # Sort by availability (and use last success as tie breaker)
     ips.sort(key=lambda x: (x['uptime'], x['lastsuccess'], x['ip']), reverse=True)
-    # Filter out hosts with multiple bitcoin ports, these are likely abusive
+    # Filter out hosts with multiple tokyocoin ports, these are likely abusive
     ips = filtermultiport(ips)
-    print('%s Filter out hosts with multiple bitcoin ports' % (ip_stats(ips)), file=sys.stderr)
+    print('%s Filter out hosts with multiple tokyocoin ports' % (ip_stats(ips)), file=sys.stderr)
     # Look up ASNs and limit results, both per ASN and globally.
     ips = filterbyasn(ips, MAX_SEEDS_PER_ASN, NSEEDS)
     print('%s Look up ASNs and limit results per ASN and per net' % (ip_stats(ips)), file=sys.stderr)

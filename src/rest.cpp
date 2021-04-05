@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2019 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,11 +18,10 @@
 #include <sync.h>
 #include <txmempool.h>
 #include <util/check.h>
-#include <util/system.h>
+#include <util/ref.h>
+#include <util/strencodings.h>
 #include <validation.h>
 #include <version.h>
-
-#include <any>
 
 #include <boost/algorithm/string.hpp>
 
@@ -75,10 +74,10 @@ static bool RESTERR(HTTPRequest* req, enum HTTPStatusCode status, std::string me
  *                  context is not found.
  * @returns         Pointer to the node context or nullptr if not found.
  */
-static NodeContext* GetNodeContext(const std::any& context, HTTPRequest* req)
+static NodeContext* GetNodeContext(const util::Ref& context, HTTPRequest* req)
 {
-    auto node_context = util::AnyPtr<NodeContext>(context);
-    if (!node_context) {
+    NodeContext* node = context.Has<NodeContext>() ? &context.Get<NodeContext>() : nullptr;
+    if (!node) {
         RESTERR(req, HTTP_INTERNAL_SERVER_ERROR,
                 strprintf("%s:%d (%s)\n"
                           "Internal bug detected: Node context not found!\n"
@@ -86,7 +85,7 @@ static NodeContext* GetNodeContext(const std::any& context, HTTPRequest* req)
                           __FILE__, __LINE__, __func__, PACKAGE_BUGREPORT));
         return nullptr;
     }
-    return node_context;
+    return node;
 }
 
 /**
@@ -96,14 +95,14 @@ static NodeContext* GetNodeContext(const std::any& context, HTTPRequest* req)
  *                 context mempool is not found.
  * @returns        Pointer to the mempool or nullptr if no mempool found.
  */
-static CTxMemPool* GetMemPool(const std::any& context, HTTPRequest* req)
+static CTxMemPool* GetMemPool(const util::Ref& context, HTTPRequest* req)
 {
-    auto node_context = util::AnyPtr<NodeContext>(context);
-    if (!node_context || !node_context->mempool) {
+    NodeContext* node = context.Has<NodeContext>() ? &context.Get<NodeContext>() : nullptr;
+    if (!node || !node->mempool) {
         RESTERR(req, HTTP_NOT_FOUND, "Mempool disabled or instance not found");
         return nullptr;
     }
-    return node_context->mempool.get();
+    return node->mempool.get();
 }
 
 static RetFormat ParseDataFormat(std::string& param, const std::string& strReq)
@@ -118,10 +117,9 @@ static RetFormat ParseDataFormat(std::string& param, const std::string& strReq)
     param = strReq.substr(0, pos);
     const std::string suff(strReq, pos + 1);
 
-    for (const auto& rf_name : rf_names) {
-        if (suff == rf_name.name)
-            return rf_name.rf;
-    }
+    for (unsigned int i = 0; i < ARRAYLEN(rf_names); i++)
+        if (suff == rf_names[i].name)
+            return rf_names[i].rf;
 
     /* If no suffix is found, return original string.  */
     param = strReq;
@@ -131,13 +129,12 @@ static RetFormat ParseDataFormat(std::string& param, const std::string& strReq)
 static std::string AvailableDataFormatsString()
 {
     std::string formats;
-    for (const auto& rf_name : rf_names) {
-        if (strlen(rf_name.name) > 0) {
+    for (unsigned int i = 0; i < ARRAYLEN(rf_names); i++)
+        if (strlen(rf_names[i].name) > 0) {
             formats.append(".");
-            formats.append(rf_name.name);
+            formats.append(rf_names[i].name);
             formats.append(", ");
         }
-    }
 
     if (formats.length() > 0)
         return formats.substr(0, formats.length() - 2);
@@ -153,7 +150,7 @@ static bool CheckWarmup(HTTPRequest* req)
     return true;
 }
 
-static bool rest_headers(const std::any& context,
+static bool rest_headers(const util::Ref& context,
                          HTTPRequest* req,
                          const std::string& strURIPart)
 {
@@ -182,7 +179,7 @@ static bool rest_headers(const std::any& context,
     {
         LOCK(cs_main);
         tip = ::ChainActive().Tip();
-        const CBlockIndex* pindex = g_chainman.m_blockman.LookupBlockIndex(hash);
+        const CBlockIndex* pindex = LookupBlockIndex(hash);
         while (pindex != nullptr && ::ChainActive().Contains(pindex)) {
             headers.push_back(pindex);
             if (headers.size() == (unsigned long)count)
@@ -250,7 +247,7 @@ static bool rest_block(HTTPRequest* req,
     {
         LOCK(cs_main);
         tip = ::ChainActive().Tip();
-        pblockindex = g_chainman.m_blockman.LookupBlockIndex(hash);
+        pblockindex = LookupBlockIndex(hash);
         if (!pblockindex) {
             return RESTERR(req, HTTP_NOT_FOUND, hashStr + " not found");
         }
@@ -295,12 +292,12 @@ static bool rest_block(HTTPRequest* req,
     }
 }
 
-static bool rest_block_extended(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_block_extended(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     return rest_block(req, strURIPart, true);
 }
 
-static bool rest_block_notxdetails(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_block_notxdetails(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     return rest_block(req, strURIPart, false);
 }
@@ -308,7 +305,7 @@ static bool rest_block_notxdetails(const std::any& context, HTTPRequest* req, co
 // A bit of a hack - dependency on a function defined in rpc/blockchain.cpp
 RPCHelpMan getblockchaininfo();
 
-static bool rest_chaininfo(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_chaininfo(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req))
         return false;
@@ -331,7 +328,7 @@ static bool rest_chaininfo(const std::any& context, HTTPRequest* req, const std:
     }
 }
 
-static bool rest_mempool_info(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_mempool_info(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req))
         return false;
@@ -355,7 +352,7 @@ static bool rest_mempool_info(const std::any& context, HTTPRequest* req, const s
     }
 }
 
-static bool rest_mempool_contents(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_mempool_contents(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req)) return false;
     const CTxMemPool* mempool = GetMemPool(context, req);
@@ -378,7 +375,7 @@ static bool rest_mempool_contents(const std::any& context, HTTPRequest* req, con
     }
 }
 
-static bool rest_tx(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_tx(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req))
         return false;
@@ -437,7 +434,7 @@ static bool rest_tx(const std::any& context, HTTPRequest* req, const std::string
     }
 }
 
-static bool rest_getutxos(const std::any& context, HTTPRequest* req, const std::string& strURIPart)
+static bool rest_getutxos(const util::Ref& context, HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req))
         return false;
@@ -623,14 +620,14 @@ static bool rest_getutxos(const std::any& context, HTTPRequest* req, const std::
     }
 }
 
-static bool rest_blockhash_by_height(const std::any& context, HTTPRequest* req,
+static bool rest_blockhash_by_height(const util::Ref& context, HTTPRequest* req,
                        const std::string& str_uri_part)
 {
     if (!CheckWarmup(req)) return false;
     std::string height_str;
     const RetFormat rf = ParseDataFormat(height_str, str_uri_part);
 
-    int32_t blockheight = -1; // Initialization done only to prevent valgrind false positive, see https://github.com/bitcoin/bitcoin/pull/18785
+    int32_t blockheight = -1; // Initialization done only to prevent valgrind false positive, see https://github.com/tokyocoin/tokyocoin/pull/18785
     if (!ParseInt32(height_str, &blockheight) || blockheight < 0) {
         return RESTERR(req, HTTP_BAD_REQUEST, "Invalid height: " + SanitizeString(height_str));
     }
@@ -671,7 +668,7 @@ static bool rest_blockhash_by_height(const std::any& context, HTTPRequest* req,
 
 static const struct {
     const char* prefix;
-    bool (*handler)(const std::any& context, HTTPRequest* req, const std::string& strReq);
+    bool (*handler)(const util::Ref& context, HTTPRequest* req, const std::string& strReq);
 } uri_prefixes[] = {
       {"/rest/tx/", rest_tx},
       {"/rest/block/notxdetails/", rest_block_notxdetails},
@@ -684,7 +681,7 @@ static const struct {
       {"/rest/blockhashbyheight/", rest_blockhash_by_height},
 };
 
-void StartREST(const std::any& context)
+void StartREST(const util::Ref& context)
 {
     for (const auto& up : uri_prefixes) {
         auto handler = [&context, up](HTTPRequest* req, const std::string& prefix) { return up.handler(context, req, prefix); };
@@ -698,7 +695,6 @@ void InterruptREST()
 
 void StopREST()
 {
-    for (const auto& up : uri_prefixes) {
-        UnregisterHTTPHandler(up.prefix, false);
-    }
+    for (unsigned int i = 0; i < ARRAYLEN(uri_prefixes); i++)
+        UnregisterHTTPHandler(uri_prefixes[i].prefix, false);
 }

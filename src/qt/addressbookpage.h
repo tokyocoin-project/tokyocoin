@@ -1,9 +1,9 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_ADDRESSBOOKPAGE_H
-#define BITCOIN_QT_ADDRESSBOOKPAGE_H
+#ifndef TOKYOCOIN_QT_ADDRESSBOOKPAGE_H
+#define TOKYOCOIN_QT_ADDRESSBOOKPAGE_H
 
 #include <QDialog>
 
@@ -83,4 +83,4 @@ Q_SIGNALS:
     void sendCoins(QString addr);
 };
 
-#endif // BITCOIN_QT_ADDRESSBOOKPAGE_H
+#endif // TOKYOCOIN_QT_ADDRESSBOOKPAGE_H

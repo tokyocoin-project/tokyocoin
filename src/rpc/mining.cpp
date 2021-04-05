@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -116,7 +116,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
 
     CChainParams chainparams(Params());
 
-    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus()) && !ShutdownRequested()) {
+    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max() && !CheckProofOfWork(block.GetPowHash(), block.nBits, chainparams.GetConsensus()) && !ShutdownRequested()) { // Tokyocoin: GetPowHash()
         ++block.nNonce;
         --max_tries;
     }
@@ -150,7 +150,7 @@ static UniValue generateBlocks(ChainstateManager& chainman, const CTxMemPool& me
     UniValue blockHashes(UniValue::VARR);
     while (nHeight < nHeightEnd && !ShutdownRequested())
     {
-        std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(chainman.ActiveChainstate(), mempool, Params()).CreateNewBlock(coinbase_script));
+        std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(mempool, Params()).CreateNewBlock(coinbase_script));
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
@@ -209,7 +209,7 @@ static RPCHelpMan generatetodescriptor()
         "\nMine blocks immediately to a specified descriptor (before the RPC call returns)\n",
         {
             {"num_blocks", RPCArg::Type::NUM, RPCArg::Optional::NO, "How many blocks are generated immediately."},
-            {"descriptor", RPCArg::Type::STR, RPCArg::Optional::NO, "The descriptor to send the newly generated bitcoin to."},
+            {"descriptor", RPCArg::Type::STR, RPCArg::Optional::NO, "The descriptor to send the newly generated tokyocoin to."},
             {"maxtries", RPCArg::Type::NUM, /* default */ ToString(DEFAULT_MAX_TRIES), "How many iterations to try."},
         },
         RPCResult{
@@ -242,7 +242,12 @@ static RPCHelpMan generatetodescriptor()
 static RPCHelpMan generate()
 {
     return RPCHelpMan{"generate", "has been replaced by the -generate cli option. Refer to -help for more information.", {}, {}, RPCExamples{""}, [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue {
+
+    if (request.fHelp) {
+        throw std::runtime_error(self.ToString());
+    } else {
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, self.ToString());
+    }
     }};
 }
 
@@ -252,7 +257,7 @@ static RPCHelpMan generatetoaddress()
                 "\nMine blocks immediately to a specified address (before the RPC call returns)\n",
                 {
                     {"nblocks", RPCArg::Type::NUM, RPCArg::Optional::NO, "How many blocks are generated immediately."},
-                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The address to send the newly generated bitcoin to."},
+                    {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The address to send the newly generated tokyocoin to."},
                     {"maxtries", RPCArg::Type::NUM, /* default */ ToString(DEFAULT_MAX_TRIES), "How many iterations to try."},
                 },
                 RPCResult{
@@ -263,7 +268,7 @@ static RPCHelpMan generatetoaddress()
                 RPCExamples{
             "\nGenerate 11 blocks to myaddress\n"
             + HelpExampleCli("generatetoaddress", "11 \"myaddress\"")
-            + "If you are using the " PACKAGE_NAME " wallet, you can get a new address to send the newly generated bitcoin to with:\n"
+            + "If you are using the " PACKAGE_NAME " wallet, you can get a new address to send the newly generated tokyocoin to with:\n"
             + HelpExampleCli("getnewaddress", "")
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
@@ -291,7 +296,7 @@ static RPCHelpMan generateblock()
     return RPCHelpMan{"generateblock",
         "\nMine a block with a set of ordered transactions immediately to a specified address or descriptor (before the RPC call returns)\n",
         {
-            {"output", RPCArg::Type::STR, RPCArg::Optional::NO, "The address or descriptor to send the newly generated bitcoin to."},
+            {"output", RPCArg::Type::STR, RPCArg::Optional::NO, "The address or descriptor to send the newly generated tokyocoin to."},
             {"transactions", RPCArg::Type::ARR, RPCArg::Optional::NO, "An array of hex strings which are either txids or raw transactions.\n"
                 "Txids must reference transactions currently in the mempool.\n"
                 "All transactions must be valid and in valid order, otherwise the block will be rejected.",
@@ -358,7 +363,7 @@ static RPCHelpMan generateblock()
         LOCK(cs_main);
 
         CTxMemPool empty_mempool;
-        std::unique_ptr<CBlockTemplate> blocktemplate(BlockAssembler(::ChainstateActive(), empty_mempool, chainparams).CreateNewBlock(coinbase_script));
+        std::unique_ptr<CBlockTemplate> blocktemplate(BlockAssembler(empty_mempool, chainparams).CreateNewBlock(coinbase_script));
         if (!blocktemplate) {
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         }
@@ -369,13 +374,13 @@ static RPCHelpMan generateblock()
 
     // Add transactions
     block.vtx.insert(block.vtx.end(), txs.begin(), txs.end());
-    RegenerateCommitments(block, WITH_LOCK(::cs_main, return std::ref(g_chainman.m_blockman)));
+    RegenerateCommitments(block);
 
     {
         LOCK(cs_main);
 
         BlockValidationState state;
-        if (!TestBlockValidity(state, chainparams, ::ChainstateActive(), block, g_chainman.m_blockman.LookupBlockIndex(block.hashPrevBlock), false, false)) {
+        if (!TestBlockValidity(state, chainparams, block, LookupBlockIndex(block.hashPrevBlock), false, false)) {
             throw JSONRPCError(RPC_VERIFY_ERROR, strprintf("TestBlockValidity failed: %s", state.ToString()));
         }
     }
@@ -409,7 +414,7 @@ static RPCHelpMan getmininginfo()
                         {RPCResult::Type::NUM, "difficulty", "The current difficulty"},
                         {RPCResult::Type::NUM, "networkhashps", "The network hashes per second"},
                         {RPCResult::Type::NUM, "pooledtx", "The size of the mempool"},
-                        {RPCResult::Type::STR, "chain", "current network name (main, test, signet, regtest)"},
+                        {RPCResult::Type::STR, "chain", "current network name (main, test, regtest)"},
                         {RPCResult::Type::STR, "warnings", "any network and blockchain warnings"},
                     }},
                 RPCExamples{
@@ -436,7 +441,7 @@ static RPCHelpMan getmininginfo()
 }
 
 
-// NOTE: Unlike wallet RPC (which use BTC values), mining RPCs follow GBT (BIP 22) in using satoshi amounts
+// NOTE: Unlike wallet RPC (which use TKC values), mining RPCs follow GBT (BIP 22) in using satoshi amounts
 static RPCHelpMan prioritisetransaction()
 {
     return RPCHelpMan{"prioritisetransaction",
@@ -505,84 +510,83 @@ static std::string gbt_vb_name(const Consensus::DeploymentPos pos) {
 static RPCHelpMan getblocktemplate()
 {
     return RPCHelpMan{"getblocktemplate",
-        "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
-        "It returns data needed to construct a block to work on.\n"
-        "For full specification, see BIPs 22, 23, 9, and 145:\n"
-        "    https://github.com/bitcoin/bips/blob/master/bip-0022.mediawiki\n"
-        "    https://github.com/bitcoin/bips/blob/master/bip-0023.mediawiki\n"
-        "    https://github.com/bitcoin/bips/blob/master/bip-0009.mediawiki#getblocktemplate_changes\n"
-        "    https://github.com/bitcoin/bips/blob/master/bip-0145.mediawiki\n",
-        {
-            {"template_request", RPCArg::Type::OBJ, "{}", "Format of the template",
-            {
-                {"mode", RPCArg::Type::STR, /* treat as named arg */ RPCArg::Optional::OMITTED_NAMED_ARG, "This must be set to \"template\", \"proposal\" (see BIP 23), or omitted"},
-                {"capabilities", RPCArg::Type::ARR, /* treat as named arg */ RPCArg::Optional::OMITTED_NAMED_ARG, "A list of strings",
+                "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
+                "It returns data needed to construct a block to work on.\n"
+                "For full specification, see BIPs 22, 23, 9, and 145:\n"
+                "    https://github.com/tokyocoin/bips/blob/master/bip-0022.mediawiki\n"
+                "    https://github.com/tokyocoin/bips/blob/master/bip-0023.mediawiki\n"
+                "    https://github.com/tokyocoin/bips/blob/master/bip-0009.mediawiki#getblocktemplate_changes\n"
+                "    https://github.com/tokyocoin/bips/blob/master/bip-0145.mediawiki\n",
                 {
-                    {"str", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "client side supported feature, 'longpoll', 'coinbasevalue', 'proposal', 'serverlist', 'workid'"},
-                }},
-                {"rules", RPCArg::Type::ARR, RPCArg::Optional::NO, "A list of strings",
-                {
-                    {"segwit", RPCArg::Type::STR, RPCArg::Optional::NO, "(literal) indicates client side segwit support"},
-                    {"str", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "other client side supported softfork deployment"},
-                }},
-            },
-                        "\"template_request\""},
-        },
-        {
-            RPCResult{"If the proposal was accepted with mode=='proposal'", RPCResult::Type::NONE, "", ""},
-            RPCResult{"If the proposal was not accepted with mode=='proposal'", RPCResult::Type::STR, "", "According to BIP22"},
-            RPCResult{"Otherwise", RPCResult::Type::OBJ, "", "",
-            {
-                {RPCResult::Type::NUM, "version", "The preferred block version"},
-                {RPCResult::Type::ARR, "rules", "specific block rules that are to be enforced",
-                {
-                    {RPCResult::Type::STR, "", "name of a rule the client must understand to some extent; see BIP 9 for format"},
-                }},
-                {RPCResult::Type::OBJ_DYN, "vbavailable", "set of pending, supported versionbit (BIP 9) softfork deployments",
-                {
-                    {RPCResult::Type::NUM, "rulename", "identifies the bit number as indicating acceptance and readiness for the named softfork rule"},
-                }},
-                {RPCResult::Type::NUM, "vbrequired", "bit mask of versionbits the server requires set in submissions"},
-                {RPCResult::Type::STR, "previousblockhash", "The hash of current highest block"},
-                {RPCResult::Type::ARR, "transactions", "contents of non-coinbase transactions that should be included in the next block",
-                {
-                    {RPCResult::Type::OBJ, "", "",
-                    {
-                        {RPCResult::Type::STR_HEX, "data", "transaction data encoded in hexadecimal (byte-for-byte)"},
-                        {RPCResult::Type::STR_HEX, "txid", "transaction id encoded in little-endian hexadecimal"},
-                        {RPCResult::Type::STR_HEX, "hash", "hash encoded in little-endian hexadecimal (including witness data)"},
-                        {RPCResult::Type::ARR, "depends", "array of numbers",
+                    {"template_request", RPCArg::Type::OBJ, "{}", "Format of the template",
                         {
-                            {RPCResult::Type::NUM, "", "transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is"},
+                            {"mode", RPCArg::Type::STR, /* treat as named arg */ RPCArg::Optional::OMITTED_NAMED_ARG, "This must be set to \"template\", \"proposal\" (see BIP 23), or omitted"},
+                            {"capabilities", RPCArg::Type::ARR, /* treat as named arg */ RPCArg::Optional::OMITTED_NAMED_ARG, "A list of strings",
+                                {
+                                    {"str", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "client side supported feature, 'longpoll', 'coinbasevalue', 'proposal', 'serverlist', 'workid'"},
+                                },
+                                },
+                            {"rules", RPCArg::Type::ARR, RPCArg::Optional::NO, "A list of strings",
+                                {
+                                    {"segwit", RPCArg::Type::STR, RPCArg::Optional::NO, "(literal) indicates client side segwit support"},
+                                    {"str", RPCArg::Type::STR, RPCArg::Optional::OMITTED, "other client side supported softfork deployment"},
+                                },
+                                },
+                        },
+                        "\"template_request\""},
+                },
+                RPCResult{
+                    RPCResult::Type::OBJ, "", "",
+                    {
+                        {RPCResult::Type::NUM, "version", "The preferred block version"},
+                        {RPCResult::Type::ARR, "rules", "specific block rules that are to be enforced",
+                            {
+                                {RPCResult::Type::STR, "", "name of a rule the client must understand to some extent; see BIP 9 for format"},
+                            }},
+                        {RPCResult::Type::OBJ_DYN, "vbavailable", "set of pending, supported versionbit (BIP 9) softfork deployments",
+                            {
+                                {RPCResult::Type::NUM, "rulename", "identifies the bit number as indicating acceptance and readiness for the named softfork rule"},
+                            }},
+                        {RPCResult::Type::NUM, "vbrequired", "bit mask of versionbits the server requires set in submissions"},
+                        {RPCResult::Type::STR, "previousblockhash", "The hash of current highest block"},
+                        {RPCResult::Type::ARR, "transactions", "contents of non-coinbase transactions that should be included in the next block",
+                            {
+                                {RPCResult::Type::OBJ, "", "",
+                                    {
+                                        {RPCResult::Type::STR_HEX, "data", "transaction data encoded in hexadecimal (byte-for-byte)"},
+                                        {RPCResult::Type::STR_HEX, "txid", "transaction id encoded in little-endian hexadecimal"},
+                                        {RPCResult::Type::STR_HEX, "hash", "hash encoded in little-endian hexadecimal (including witness data)"},
+                                        {RPCResult::Type::ARR, "depends", "array of numbers",
+                                            {
+                                                {RPCResult::Type::NUM, "", "transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is"},
+                                            }},
+                                        {RPCResult::Type::NUM, "fee", "difference in value between transaction inputs and outputs (in satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one"},
+                                        {RPCResult::Type::NUM, "sigops", "total SigOps cost, as counted for purposes of block limits; if key is not present, sigop cost is unknown and clients MUST NOT assume it is zero"},
+                                        {RPCResult::Type::NUM, "weight", "total transaction weight, as counted for purposes of block limits"},
+                                    }},
+                            }},
+                        {RPCResult::Type::OBJ_DYN, "coinbaseaux", "data that should be included in the coinbase's scriptSig content",
+                        {
+                            {RPCResult::Type::STR_HEX, "key", "values must be in the coinbase (keys may be ignored)"},
                         }},
-                        {RPCResult::Type::NUM, "fee", "difference in value between transaction inputs and outputs (in satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one"},
-                        {RPCResult::Type::NUM, "sigops", "total SigOps cost, as counted for purposes of block limits; if key is not present, sigop cost is unknown and clients MUST NOT assume it is zero"},
-                        {RPCResult::Type::NUM, "weight", "total transaction weight, as counted for purposes of block limits"},
+                        {RPCResult::Type::NUM, "coinbasevalue", "maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)"},
+                        {RPCResult::Type::STR, "longpollid", "an id to include with a request to longpoll on an update to this template"},
+                        {RPCResult::Type::STR, "target", "The hash target"},
+                        {RPCResult::Type::NUM_TIME, "mintime", "The minimum timestamp appropriate for the next block time, expressed in " + UNIX_EPOCH_TIME},
+                        {RPCResult::Type::ARR, "mutable", "list of ways the block template may be changed",
+                            {
+                                {RPCResult::Type::STR, "value", "A way the block template may be changed, e.g. 'time', 'transactions', 'prevblock'"},
+                            }},
+                        {RPCResult::Type::STR_HEX, "noncerange", "A range of valid nonces"},
+                        {RPCResult::Type::NUM, "sigoplimit", "limit of sigops in blocks"},
+                        {RPCResult::Type::NUM, "sizelimit", "limit of block size"},
+                        {RPCResult::Type::NUM, "weightlimit", "limit of block weight"},
+                        {RPCResult::Type::NUM_TIME, "curtime", "current timestamp in " + UNIX_EPOCH_TIME},
+                        {RPCResult::Type::STR, "bits", "compressed target of next block"},
+                        {RPCResult::Type::NUM, "height", "The height of the next block"},
+                        {RPCResult::Type::STR, "default_witness_commitment", /* optional */ true, "a valid witness commitment for the unmodified block template"}
                     }},
-                }},
-                {RPCResult::Type::OBJ_DYN, "coinbaseaux", "data that should be included in the coinbase's scriptSig content",
-                {
-                    {RPCResult::Type::STR_HEX, "key", "values must be in the coinbase (keys may be ignored)"},
-                }},
-                {RPCResult::Type::NUM, "coinbasevalue", "maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)"},
-                {RPCResult::Type::STR, "longpollid", "an id to include with a request to longpoll on an update to this template"},
-                {RPCResult::Type::STR, "target", "The hash target"},
-                {RPCResult::Type::NUM_TIME, "mintime", "The minimum timestamp appropriate for the next block time, expressed in " + UNIX_EPOCH_TIME},
-                {RPCResult::Type::ARR, "mutable", "list of ways the block template may be changed",
-                {
-                    {RPCResult::Type::STR, "value", "A way the block template may be changed, e.g. 'time', 'transactions', 'prevblock'"},
-                }},
-                {RPCResult::Type::STR_HEX, "noncerange", "A range of valid nonces"},
-                {RPCResult::Type::NUM, "sigoplimit", "limit of sigops in blocks"},
-                {RPCResult::Type::NUM, "sizelimit", "limit of block size"},
-                {RPCResult::Type::NUM, "weightlimit", "limit of block weight"},
-                {RPCResult::Type::NUM_TIME, "curtime", "current timestamp in " + UNIX_EPOCH_TIME},
-                {RPCResult::Type::STR, "bits", "compressed target of next block"},
-                {RPCResult::Type::NUM, "height", "The height of the next block"},
-                {RPCResult::Type::STR, "default_witness_commitment", /* optional */ true, "a valid witness commitment for the unmodified block template"},
-            }},
-        },
-        RPCExamples{
+                RPCExamples{
                     HelpExampleCli("getblocktemplate", "'{\"rules\": [\"segwit\"]}'")
             + HelpExampleRpc("getblocktemplate", "{\"rules\": [\"segwit\"]}")
                 },
@@ -619,7 +623,7 @@ static RPCHelpMan getblocktemplate()
                 throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
 
             uint256 hash = block.GetHash();
-            const CBlockIndex* pindex = g_chainman.m_blockman.LookupBlockIndex(hash);
+            const CBlockIndex* pindex = LookupBlockIndex(hash);
             if (pindex) {
                 if (pindex->IsValid(BLOCK_VALID_SCRIPTS))
                     return "duplicate";
@@ -633,7 +637,7 @@ static RPCHelpMan getblocktemplate()
             if (block.hashPrevBlock != pindexPrev->GetBlockHash())
                 return "inconclusive-not-best-prevblk";
             BlockValidationState state;
-            TestBlockValidity(state, Params(), ::ChainstateActive(), block, pindexPrev, false, true);
+            TestBlockValidity(state, Params(), block, pindexPrev, false, true);
             return BIP22ValidationResult(state);
         }
 
@@ -659,15 +663,11 @@ static RPCHelpMan getblocktemplate()
     if(!node.connman)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
 
-    if (!Params().IsTestChain()) {
-        if (node.connman->GetNodeCount(ConnectionDirection::Both) == 0) {
-            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, PACKAGE_NAME " is not connected!");
-        }
+    if (node.connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0)
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, PACKAGE_NAME " is not connected!");
 
-        if (::ChainstateActive().IsInitialBlockDownload()) {
-            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
-        }
-    }
+    if (::ChainstateActive().IsInitialBlockDownload())
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
 
     static unsigned int nTransactionsUpdatedLast;
     const CTxMemPool& mempool = EnsureMemPool(request.context);
@@ -719,13 +719,6 @@ static RPCHelpMan getblocktemplate()
         // TODO: Maybe recheck connections/IBD and (if something wrong) send an expires-immediately template to stop miners?
     }
 
-    const Consensus::Params& consensusParams = Params().GetConsensus();
-
-    // GBT must be called with 'signet' set in the rules for signet chains
-    if (consensusParams.signet_blocks && setClientRules.count("signet") != 1) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "getblocktemplate must be called with the signet rule set (call with {\"rules\": [\"segwit\", \"signet\"]})");
-    }
-
     // GBT must be called with 'segwit' set in the rules
     if (setClientRules.count("segwit") != 1) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "getblocktemplate must be called with the segwit rule set (call with {\"rules\": [\"segwit\"]})");
@@ -748,7 +741,7 @@ static RPCHelpMan getblocktemplate()
 
         // Create new block
         CScript scriptDummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler(::ChainstateActive(), mempool, Params()).CreateNewBlock(scriptDummy);
+        pblocktemplate = BlockAssembler(mempool, Params()).CreateNewBlock(scriptDummy);
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
@@ -757,6 +750,7 @@ static RPCHelpMan getblocktemplate()
     }
     CHECK_NONFATAL(pindexPrev);
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
+    const Consensus::Params& consensusParams = Params().GetConsensus();
 
     // Update nTime
     UpdateTime(pblock, consensusParams, pindexPrev);
@@ -820,12 +814,6 @@ static RPCHelpMan getblocktemplate()
     UniValue aRules(UniValue::VARR);
     aRules.push_back("csv");
     if (!fPreSegWit) aRules.push_back("!segwit");
-    if (consensusParams.signet_blocks) {
-        // indicate to miner that they must understand signet rules
-        // when attempting to mine with this template
-        aRules.push_back("!signet");
-    }
-
     UniValue vbavailable(UniValue::VOBJ);
     for (int j = 0; j < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; ++j) {
         Consensus::DeploymentPos pos = Consensus::DeploymentPos(j);
@@ -906,10 +894,6 @@ static RPCHelpMan getblocktemplate()
     result.pushKV("bits", strprintf("%08x", pblock->nBits));
     result.pushKV("height", (int64_t)(pindexPrev->nHeight+1));
 
-    if (consensusParams.signet_blocks) {
-        result.pushKV("signet_challenge", HexStr(consensusParams.signet_challenge));
-    }
-
     if (!pblocktemplate->vchCoinbaseCommitment.empty()) {
         result.pushKV("default_witness_commitment", HexStr(pblocktemplate->vchCoinbaseCommitment));
     }
@@ -941,17 +925,14 @@ static RPCHelpMan submitblock()
 {
     // We allow 2 arguments for compliance with BIP22. Argument 2 is ignored.
     return RPCHelpMan{"submitblock",
-        "\nAttempts to submit new block to network.\n"
-        "See https://en.bitcoin.it/wiki/BIP_0022 for full specification.\n",
-        {
-            {"hexdata", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "the hex-encoded block data to submit"},
-            {"dummy", RPCArg::Type::STR, /* default */ "ignored", "dummy value, for compatibility with BIP22. This value is ignored."},
-        },
-        {
-            RPCResult{"If the block was accepted", RPCResult::Type::NONE, "", ""},
-            RPCResult{"Otherwise", RPCResult::Type::STR, "", "According to BIP22"},
-        },
-        RPCExamples{
+                "\nAttempts to submit new block to network.\n"
+                "See https://en.tokyocoin.it/wiki/BIP_0022 for full specification.\n",
+                {
+                    {"hexdata", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "the hex-encoded block data to submit"},
+                    {"dummy", RPCArg::Type::STR, /* default */ "ignored", "dummy value, for compatibility with BIP22. This value is ignored."},
+                },
+                RPCResult{RPCResult::Type::NONE, "", "Returns JSON Null when valid, a string according to BIP22 otherwise"},
+                RPCExamples{
                     HelpExampleCli("submitblock", "\"mydata\"")
             + HelpExampleRpc("submitblock", "\"mydata\"")
                 },
@@ -970,7 +951,7 @@ static RPCHelpMan submitblock()
     uint256 hash = block.GetHash();
     {
         LOCK(cs_main);
-        const CBlockIndex* pindex = g_chainman.m_blockman.LookupBlockIndex(hash);
+        const CBlockIndex* pindex = LookupBlockIndex(hash);
         if (pindex) {
             if (pindex->IsValid(BLOCK_VALID_SCRIPTS)) {
                 return "duplicate";
@@ -983,7 +964,7 @@ static RPCHelpMan submitblock()
 
     {
         LOCK(cs_main);
-        const CBlockIndex* pindex = g_chainman.m_blockman.LookupBlockIndex(block.hashPrevBlock);
+        const CBlockIndex* pindex = LookupBlockIndex(block.hashPrevBlock);
         if (pindex) {
             UpdateUncommittedBlockStructures(block, pindex, Params().GetConsensus());
         }
@@ -1027,7 +1008,7 @@ static RPCHelpMan submitheader()
     }
     {
         LOCK(cs_main);
-        if (!g_chainman.m_blockman.LookupBlockIndex(h.hashPrevBlock)) {
+        if (!LookupBlockIndex(h.hashPrevBlock)) {
             throw JSONRPCError(RPC_VERIFY_ERROR, "Must submit previous header (" + h.hashPrevBlock.GetHex() + ") first");
         }
     }
@@ -1046,19 +1027,21 @@ static RPCHelpMan submitheader()
 static RPCHelpMan estimatesmartfee()
 {
     return RPCHelpMan{"estimatesmartfee",
-        "\nEstimates the approximate fee per kilobyte needed for a transaction to begin\n"
-        "confirmation within conf_target blocks if possible and return the number of blocks\n"
-        "for which the estimate is valid. Uses virtual transaction size as defined\n"
-        "in BIP 141 (witness data is discounted).\n",
-        {
-            {"conf_target", RPCArg::Type::NUM, RPCArg::Optional::NO, "Confirmation target in blocks (1 - 1008)"},
-            {"estimate_mode", RPCArg::Type::STR, /* default */ "conservative", "The fee estimate mode.\n"
+                "\nEstimates the approximate fee per kilobyte needed for a transaction to begin\n"
+                "confirmation within conf_target blocks if possible and return the number of blocks\n"
+                "for which the estimate is valid. Uses virtual transaction size as defined\n"
+                "in BIP 141 (witness data is discounted).\n",
+                {
+                    {"conf_target", RPCArg::Type::NUM, RPCArg::Optional::NO, "Confirmation target in blocks (1 - 1008)"},
+                    {"estimate_mode", RPCArg::Type::STR, /* default */ "CONSERVATIVE", "The fee estimate mode.\n"
             "                   Whether to return a more conservative estimate which also satisfies\n"
             "                   a longer history. A conservative estimate potentially returns a\n"
             "                   higher feerate and is more likely to be sufficient for the desired\n"
             "                   target, but is not as responsive to short term drops in the\n"
-            "                   prevailing fee market. Must be one of (case insensitive):\n"
-             "\"" + FeeModes("\"\n\"") + "\""},
+            "                   prevailing fee market.  Must be one of:\n"
+            "       \"UNSET\"\n"
+            "       \"ECONOMICAL\"\n"
+            "       \"CONSERVATIVE\""},
                 },
                 RPCResult{
                     RPCResult::Type::OBJ, "", "",
@@ -1081,10 +1064,7 @@ static RPCHelpMan estimatesmartfee()
 {
     RPCTypeCheck(request.params, {UniValue::VNUM, UniValue::VSTR});
     RPCTypeCheckArgument(request.params[0], UniValue::VNUM);
-
-    CBlockPolicyEstimator& fee_estimator = EnsureFeeEstimator(request.context);
-
-    unsigned int max_target = fee_estimator.HighestTargetTracked(FeeEstimateHorizon::LONG_HALFLIFE);
+    unsigned int max_target = ::feeEstimator.HighestTargetTracked(FeeEstimateHorizon::LONG_HALFLIFE);
     unsigned int conf_target = ParseConfirmTarget(request.params[0], max_target);
     bool conservative = true;
     if (!request.params[1].isNull()) {
@@ -1098,7 +1078,7 @@ static RPCHelpMan estimatesmartfee()
     UniValue result(UniValue::VOBJ);
     UniValue errors(UniValue::VARR);
     FeeCalculation feeCalc;
-    CFeeRate feeRate = fee_estimator.estimateSmartFee(conf_target, &feeCalc, conservative);
+    CFeeRate feeRate = ::feeEstimator.estimateSmartFee(conf_target, &feeCalc, conservative);
     if (feeRate != CFeeRate(0)) {
         result.pushKV("feerate", ValueFromAmount(feeRate.GetFeePerK()));
     } else {
@@ -1169,10 +1149,7 @@ static RPCHelpMan estimaterawfee()
 {
     RPCTypeCheck(request.params, {UniValue::VNUM, UniValue::VNUM}, true);
     RPCTypeCheckArgument(request.params[0], UniValue::VNUM);
-
-    CBlockPolicyEstimator& fee_estimator = EnsureFeeEstimator(request.context);
-
-    unsigned int max_target = fee_estimator.HighestTargetTracked(FeeEstimateHorizon::LONG_HALFLIFE);
+    unsigned int max_target = ::feeEstimator.HighestTargetTracked(FeeEstimateHorizon::LONG_HALFLIFE);
     unsigned int conf_target = ParseConfirmTarget(request.params[0], max_target);
     double threshold = 0.95;
     if (!request.params[1].isNull()) {
@@ -1184,14 +1161,14 @@ static RPCHelpMan estimaterawfee()
 
     UniValue result(UniValue::VOBJ);
 
-    for (const FeeEstimateHorizon horizon : ALL_FEE_ESTIMATE_HORIZONS) {
+    for (const FeeEstimateHorizon horizon : {FeeEstimateHorizon::SHORT_HALFLIFE, FeeEstimateHorizon::MED_HALFLIFE, FeeEstimateHorizon::LONG_HALFLIFE}) {
         CFeeRate feeRate;
         EstimationResult buckets;
 
         // Only output results for horizons which track the target
-        if (conf_target > fee_estimator.HighestTargetTracked(horizon)) continue;
+        if (conf_target > ::feeEstimator.HighestTargetTracked(horizon)) continue;
 
-        feeRate = fee_estimator.estimateRawFee(conf_target, threshold, horizon, &buckets);
+        feeRate = ::feeEstimator.estimateRawFee(conf_target, threshold, horizon, &buckets);
         UniValue horizon_result(UniValue::VOBJ);
         UniValue errors(UniValue::VARR);
         UniValue passbucket(UniValue::VOBJ);
@@ -1236,24 +1213,24 @@ void RegisterMiningRPCCommands(CRPCTable &t)
 {
 // clang-format off
 static const CRPCCommand commands[] =
-{ //  category               actor (function)
-  //  ---------------------  -----------------------
-    { "mining",              &getnetworkhashps,        },
-    { "mining",              &getmininginfo,           },
-    { "mining",              &prioritisetransaction,   },
-    { "mining",              &getblocktemplate,        },
-    { "mining",              &submitblock,             },
-    { "mining",              &submitheader,            },
+{ //  category              name                      actor (function)         argNames
+  //  --------------------- ------------------------  -----------------------  ----------
+    { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
+    { "mining",             "getmininginfo",          &getmininginfo,          {} },
+    { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
+    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
+    { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
+    { "mining",             "submitheader",           &submitheader,           {"hexdata"} },
 
 
-    { "generating",          &generatetoaddress,       },
-    { "generating",          &generatetodescriptor,    },
-    { "generating",          &generateblock,           },
+    { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} },
+    { "generating",         "generatetodescriptor",   &generatetodescriptor,   {"num_blocks","descriptor","maxtries"} },
+    { "generating",         "generateblock",          &generateblock,          {"output","transactions"} },
 
-    { "util",                &estimatesmartfee,        },
+    { "util",               "estimatesmartfee",       &estimatesmartfee,       {"conf_target", "estimate_mode"} },
 
-    { "hidden",              &estimaterawfee,          },
-    { "hidden",              &generate,                },
+    { "hidden",             "estimaterawfee",         &estimaterawfee,         {"conf_target", "threshold"} },
+    { "hidden",             "generate",               &generate,               {} },
 };
 // clang-format on
     for (const auto& c : commands) {

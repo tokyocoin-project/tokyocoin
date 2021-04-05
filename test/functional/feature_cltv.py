@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2015-2020 The Bitcoin Core developers
+# Copyright (c) 2015-2020 The Tokyocoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test BIP65 (CHECKLOCKTIMEVERIFY).
@@ -12,7 +12,7 @@ from test_framework.blocktools import create_coinbase, create_block, create_tran
 from test_framework.messages import CTransaction, msg_block, ToHex
 from test_framework.p2p import P2PInterface
 from test_framework.script import CScript, OP_1NEGATE, OP_CHECKLOCKTIMEVERIFY, OP_DROP, CScriptNum
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import TokyocoinTestFramework
 from test_framework.util import (
     assert_equal,
     hex_str_to_bytes,
@@ -51,7 +51,7 @@ def cltv_validate(node, tx, height):
     return new_tx
 
 
-class BIP65Test(BitcoinTestFramework):
+class BIP65Test(TokyocoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 1
         self.extra_args = [[
@@ -126,13 +126,8 @@ class BIP65Test(BitcoinTestFramework):
         # First we show that this tx is valid except for CLTV by getting it
         # rejected from the mempool for exactly that reason.
         assert_equal(
-            [{
-                'txid': spendtx.hash,
-                'wtxid': spendtx.getwtxid(),
-                'allowed': False,
-                'reject-reason': 'non-mandatory-script-verify-flag (Negative locktime)',
-            }],
-            self.nodes[0].testmempoolaccept(rawtxs=[spendtx.serialize().hex()], maxfeerate=0),
+            [{'txid': spendtx.hash, 'allowed': False, 'reject-reason': 'non-mandatory-script-verify-flag (Negative locktime)'}],
+            self.nodes[0].testmempoolaccept(rawtxs=[spendtx.serialize().hex()], maxfeerate=0)
         )
 
         # Now we verify that a block with this transaction is also invalid.

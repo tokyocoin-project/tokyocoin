@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2020 The Bitcoin Core developers
+// Copyright (c) 2012-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,9 +10,8 @@
 #include <interfaces/chain.h>
 #include <node/context.h>
 #include <test/util/setup_common.h>
+#include <util/ref.h>
 #include <util/time.h>
-
-#include <any>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>
@@ -33,10 +32,11 @@ UniValue RPCTestingSetup::CallRPC(std::string args)
     boost::split(vArgs, args, boost::is_any_of(" \t"));
     std::string strMethod = vArgs[0];
     vArgs.erase(vArgs.begin());
-    std::any context{&m_node};
+    util::Ref context{m_node};
     JSONRPCRequest request(context);
     request.strMethod = strMethod;
     request.params = RPCConvertValues(strMethod, vArgs);
+    request.fHelp = false;
     if (RPCIsInWarmup(nullptr)) SetRPCWarmupFinished();
     try {
         UniValue result = tableRPC.execute(request);
@@ -174,16 +174,6 @@ BOOST_AUTO_TEST_CASE(rpc_format_monetary_values)
     BOOST_CHECK_EQUAL(ValueFromAmount(COIN/1000000).write(), "0.00000100");
     BOOST_CHECK_EQUAL(ValueFromAmount(COIN/10000000).write(), "0.00000010");
     BOOST_CHECK_EQUAL(ValueFromAmount(COIN/100000000).write(), "0.00000001");
-
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::max()).write(), "92233720368.54775807");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::max() - 1).write(), "92233720368.54775806");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::max() - 2).write(), "92233720368.54775805");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::max() - 3).write(), "92233720368.54775804");
-    // ...
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::min() + 3).write(), "-92233720368.54775805");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::min() + 2).write(), "-92233720368.54775806");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::min() + 1).write(), "-92233720368.54775807");
-    BOOST_CHECK_EQUAL(ValueFromAmount(std::numeric_limits<CAmount>::min()).write(), "-92233720368.54775808");
 }
 
 static UniValue ValueFromString(const std::string &str)
@@ -242,7 +232,7 @@ BOOST_AUTO_TEST_CASE(json_parse_errors)
     // Invalid, trailing garbage
     BOOST_CHECK_THROW(ParseNonRFCJSONValue("1.0sds"), std::runtime_error);
     BOOST_CHECK_THROW(ParseNonRFCJSONValue("1.0]"), std::runtime_error);
-    // BTC addresses should fail parsing
+    // TKC addresses should fail parsing
     BOOST_CHECK_THROW(ParseNonRFCJSONValue("175tWpb8K1S7NmH4Zx6rewF9WQrcZv245W"), std::runtime_error);
     BOOST_CHECK_THROW(ParseNonRFCJSONValue("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNL"), std::runtime_error);
 }

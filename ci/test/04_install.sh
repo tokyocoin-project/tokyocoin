@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2018-2020 The Bitcoin Core developers
+# Copyright (c) 2018-2020 The Tokyocoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 export LC_ALL=C.UTF-8
 
+if [[ $DOCKER_NAME_TAG == centos* ]]; then
+  export LC_ALL=en_US.utf8
+fi
 if [[ $QEMU_USER_CMD == qemu-s390* ]]; then
   export LC_ALL=C
 fi
@@ -22,8 +25,8 @@ export ASAN_OPTIONS="detect_stack_use_after_return=1:check_initialization_order=
 export LSAN_OPTIONS="suppressions=${BASE_ROOT_DIR}/test/sanitizer_suppressions/lsan"
 export TSAN_OPTIONS="suppressions=${BASE_ROOT_DIR}/test/sanitizer_suppressions/tsan:halt_on_error=1:log_path=${BASE_SCRATCH_DIR}/sanitizer-output/tsan"
 export UBSAN_OPTIONS="suppressions=${BASE_ROOT_DIR}/test/sanitizer_suppressions/ubsan:print_stacktrace=1:halt_on_error=1:report_error_type=1"
-env | grep -E '^(BITCOIN_CONFIG|BASE_|QEMU_|CCACHE_|LC_ALL|BOOST_TEST_RANDOM|DEBIAN_FRONTEND|CONFIG_SHELL|(ASAN|LSAN|TSAN|UBSAN)_OPTIONS|PREVIOUS_RELEASES_DIR)' | tee /tmp/env
-if [[ $BITCOIN_CONFIG = *--with-sanitizers=*address* ]]; then # If ran with (ASan + LSan), Docker needs access to ptrace (https://github.com/google/sanitizers/issues/764)
+env | grep -E '^(TOKYOCOIN_CONFIG|BASE_|QEMU_|CCACHE_|LC_ALL|BOOST_TEST_RANDOM|DEBIAN_FRONTEND|CONFIG_SHELL|(ASAN|LSAN|TSAN|UBSAN)_OPTIONS|PREVIOUS_RELEASES_DIR)' | tee /tmp/env
+if [[ $TOKYOCOIN_CONFIG = *--with-sanitizers=*address* ]]; then # If ran with (ASan + LSan), Docker needs access to ptrace (https://github.com/google/sanitizers/issues/764)
   DOCKER_ADMIN="--cap-add SYS_PTRACE"
 fi
 
@@ -57,8 +60,8 @@ if [ -n "$DPKG_ADD_ARCH" ]; then
 fi
 
 if [[ $DOCKER_NAME_TAG == centos* ]]; then
-  ${CI_RETRY_EXE} DOCKER_EXEC dnf -y install epel-release
-  ${CI_RETRY_EXE} DOCKER_EXEC dnf -y --allowerasing install $DOCKER_PACKAGES $PACKAGES
+  ${CI_RETRY_EXE} DOCKER_EXEC yum -y install epel-release
+  ${CI_RETRY_EXE} DOCKER_EXEC yum -y install $DOCKER_PACKAGES $PACKAGES
 elif [ "$CI_USE_APT_INSTALL" != "no" ]; then
   ${CI_RETRY_EXE} DOCKER_EXEC apt-get update
   ${CI_RETRY_EXE} DOCKER_EXEC apt-get install --no-install-recommends --no-upgrade -y $PACKAGES $DOCKER_PACKAGES
@@ -76,7 +79,7 @@ DOCKER_EXEC echo "Free disk space:"
 DOCKER_EXEC df -h
 
 if [ ! -d ${DIR_QA_ASSETS} ]; then
-  DOCKER_EXEC git clone --depth=1 https://github.com/bitcoin-core/qa-assets ${DIR_QA_ASSETS}
+  DOCKER_EXEC git clone --depth=1 https://github.com/tokyocoin-core/qa-assets ${DIR_QA_ASSETS}
 fi
 export DIR_FUZZ_IN=${DIR_QA_ASSETS}/fuzz_seed_corpus/
 export DIR_UNIT_TEST_DATA=${DIR_QA_ASSETS}/unit_test_data/

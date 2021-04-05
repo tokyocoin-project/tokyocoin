@@ -1,9 +1,9 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/tokyocoin-config.h>
 #endif
 
 #include <qt/rpcconsole.h>
@@ -16,24 +16,19 @@
 #include <chainparams.h>
 #include <interfaces/node.h>
 #include <netbase.h>
-#include <rpc/client.h>
 #include <rpc/server.h>
+#include <rpc/client.h>
 #include <util/strencodings.h>
-#include <util/string.h>
 #include <util/system.h>
 #include <util/threadnames.h>
 
 #include <univalue.h>
 
 #ifdef ENABLE_WALLET
-#ifdef USE_BDB
-#include <wallet/bdb.h>
-#endif
 #include <wallet/db.h>
 #include <wallet/wallet.h>
 #endif
 
-#include <QDateTime>
 #include <QFont>
 #include <QKeyEvent>
 #include <QMenu>
@@ -458,26 +453,7 @@ RPCConsole::RPCConsole(interfaces::Node& node, const PlatformStyle *_platformSty
         move(QGuiApplication::primaryScreen()->availableGeometry().center() - frameGeometry().center());
     }
 
-    ui->splitter->restoreState(settings.value("PeersTabSplitterSizes").toByteArray());
-
-    constexpr QChar nonbreaking_hyphen(8209);
-    const std::vector<QString> CONNECTION_TYPE_DOC{
-        tr("Inbound: initiated by peer"),
-        tr("Outbound Full Relay: default"),
-        tr("Outbound Block Relay: does not relay transactions or addresses"),
-        tr("Outbound Manual: added using RPC %1 or %2/%3 configuration options")
-            .arg("addnode")
-            .arg(QString(nonbreaking_hyphen) + "addnode")
-            .arg(QString(nonbreaking_hyphen) + "connect"),
-        tr("Outbound Feeler: short-lived, for testing addresses"),
-        tr("Outbound Address Fetch: short-lived, for soliciting addresses")};
-    const QString list{"<ul><li>" + Join(CONNECTION_TYPE_DOC, QString("</li><li>")) + "</li></ul>"};
-    ui->peerConnectionTypeLabel->setToolTip(ui->peerConnectionTypeLabel->toolTip().arg(list));
-    const QString hb_list{"<ul><li>\""
-        + ts.to + "\" – " + tr("we selected the peer for high bandwidth relay") + "</li><li>\""
-        + ts.from + "\" – " + tr("the peer selected us for high bandwidth relay") + "</li><li>\""
-        + ts.no + "\" – " + tr("no high bandwidth relay selected") + "</li></ul>"};
-    ui->peerHighBandwidthLabel->setToolTip(ui->peerHighBandwidthLabel->toolTip().arg(hb_list));
+    QChar nonbreaking_hyphen(8209);
     ui->dataDir->setToolTip(ui->dataDir->toolTip().arg(QString(nonbreaking_hyphen) + "datadir"));
     ui->blocksDir->setToolTip(ui->blocksDir->toolTip().arg(QString(nonbreaking_hyphen) + "blocksdir"));
     ui->openDebugLogfileButton->setToolTip(ui->openDebugLogfileButton->toolTip().arg(PACKAGE_NAME));
@@ -503,6 +479,13 @@ RPCConsole::RPCConsole(interfaces::Node& node, const PlatformStyle *_platformSty
     ui->WalletSelector->setVisible(false);
     ui->WalletSelectorLabel->setVisible(false);
 
+    // set library version labels
+#ifdef ENABLE_WALLET
+    ui->berkeleyDBVersion->setText(QString::fromStdString(BerkeleyDatabaseVersion()));
+#else
+    ui->label_berkeleyDBVersion->hide();
+    ui->berkeleyDBVersion->hide();
+#endif
     // Register RPC timer interface
     rpcTimerInterface = new QtRPCTimerInterface();
     // avoid accidentally overwriting an existing, non QTThread
@@ -510,7 +493,9 @@ RPCConsole::RPCConsole(interfaces::Node& node, const PlatformStyle *_platformSty
     m_node.rpcSetTimerInterfaceIfUnset(rpcTimerInterface);
 
     setTrafficGraphRange(INITIAL_TRAFFIC_GRAPH_MINS);
-    updateDetailWidget();
+
+    ui->detailWidget->hide();
+    ui->peerHeading->setText(tr("Select a peer to view detailed information."));
 
     consoleFontSize = settings.value(fontSizeSettingsKey, QFont().pointSize()).toInt();
     clear();
@@ -522,7 +507,6 @@ RPCConsole::~RPCConsole()
 {
     QSettings settings;
     settings.setValue("RPCConsoleWindowGeometry", saveGeometry());
-    settings.setValue("PeersTabSplitterSizes", ui->splitter->saveState());
     m_node.rpcUnsetTimerInterface(rpcTimerInterface);
     delete rpcTimerInterface;
     delete ui;
@@ -608,6 +592,7 @@ void RPCConsole::setClientModel(ClientModel *model, int bestblock_height, int64_
         // set up peer table
         ui->peerWidget->setModel(model->getPeerTableModel());
         ui->peerWidget->verticalHeader()->hide();
+        ui->peerWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
         ui->peerWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
         ui->peerWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
         ui->peerWidget->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -618,10 +603,10 @@ void RPCConsole::setClientModel(ClientModel *model, int bestblock_height, int64_
 
         // create peer table context menu actions
         QAction* disconnectAction = new QAction(tr("&Disconnect"), this);
-        QAction* banAction1h = new QAction(ts.ban_for + " " + tr("1 &hour"), this);
-        QAction* banAction24h = new QAction(ts.ban_for + " " + tr("1 &day"), this);
-        QAction* banAction7d = new QAction(ts.ban_for + " " + tr("1 &week"), this);
-        QAction* banAction365d = new QAction(ts.ban_for + " " + tr("1 &year"), this);
+        QAction* banAction1h      = new QAction(tr("Ban for") + " " + tr("1 &hour"), this);
+        QAction* banAction24h     = new QAction(tr("Ban for") + " " + tr("1 &day"), this);
+        QAction* banAction7d      = new QAction(tr("Ban for") + " " + tr("1 &week"), this);
+        QAction* banAction365d    = new QAction(tr("Ban for") + " " + tr("1 &year"), this);
 
         // create peer table context menu
         peersTableContextMenu = new QMenu(this);
@@ -641,7 +626,7 @@ void RPCConsole::setClientModel(ClientModel *model, int bestblock_height, int64_
         connect(disconnectAction, &QAction::triggered, this, &RPCConsole::disconnectSelectedNode);
 
         // peer table signal handling - update peer details when selecting new node
-        connect(ui->peerWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &RPCConsole::updateDetailWidget);
+        connect(ui->peerWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &RPCConsole::peerSelected);
         // peer table signal handling - update peer details when new nodes are added to the model
         connect(model->getPeerTableModel(), &PeerTableModel::layoutChanged, this, &RPCConsole::peerLayoutChanged);
         // peer table signal handling - cache selected node ids
@@ -650,6 +635,7 @@ void RPCConsole::setClientModel(ClientModel *model, int bestblock_height, int64_
         // set up ban table
         ui->banlistWidget->setModel(model->getBanTableModel());
         ui->banlistWidget->verticalHeader()->hide();
+        ui->banlistWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
         ui->banlistWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
         ui->banlistWidget->setSelectionMode(QAbstractItemView::SingleSelection);
         ui->banlistWidget->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -1035,11 +1021,25 @@ void RPCConsole::updateTrafficStats(quint64 totalBytesIn, quint64 totalBytesOut)
     ui->lblBytesOut->setText(GUIUtil::formatBytes(totalBytesOut));
 }
 
+void RPCConsole::peerSelected(const QItemSelection &selected, const QItemSelection &deselected)
+{
+    Q_UNUSED(deselected);
+
+    if (!clientModel || !clientModel->getPeerTableModel() || selected.indexes().isEmpty())
+        return;
+
+    const CNodeCombinedStats *stats = clientModel->getPeerTableModel()->getNodeStats(selected.indexes().first().row());
+    if (stats)
+        updateNodeDetail(stats);
+}
+
 void RPCConsole::peerLayoutAboutToChange()
 {
+    QModelIndexList selected = ui->peerWidget->selectionModel()->selectedIndexes();
     cachedNodeids.clear();
-    for (const QModelIndex& peer : GUIUtil::getEntryData(ui->peerWidget, PeerTableModel::NetNodeId)) {
-        const auto stats = peer.data(PeerTableModel::StatsRole).value<CNodeCombinedStats*>();
+    for(int i = 0; i < selected.size(); i++)
+    {
+        const CNodeCombinedStats *stats = clientModel->getPeerTableModel()->getNodeStats(selected.at(i).row());
         cachedNodeids.append(stats->nodeStats.nodeid);
     }
 }
@@ -1049,6 +1049,7 @@ void RPCConsole::peerLayoutChanged()
     if (!clientModel || !clientModel->getPeerTableModel())
         return;
 
+    const CNodeCombinedStats *stats = nullptr;
     bool fUnselect = false;
     bool fReselect = false;
 
@@ -1079,6 +1080,9 @@ void RPCConsole::peerLayoutChanged()
             fUnselect = true;
             fReselect = true;
         }
+
+        // get fresh stats on the detail node.
+        stats = clientModel->getPeerTableModel()->getNodeStats(detailNodeRow);
     }
 
     if (fUnselect && selectedRow >= 0) {
@@ -1093,48 +1097,34 @@ void RPCConsole::peerLayoutChanged()
         }
     }
 
-    updateDetailWidget();
+    if (stats)
+        updateNodeDetail(stats);
 }
 
-void RPCConsole::updateDetailWidget()
+void RPCConsole::updateNodeDetail(const CNodeCombinedStats *stats)
 {
-    const QList<QModelIndex> selected_peers = GUIUtil::getEntryData(ui->peerWidget, PeerTableModel::NetNodeId);
-    if (!clientModel || !clientModel->getPeerTableModel() || selected_peers.size() != 1) {
-        ui->peersTabRightPanel->hide();
-        ui->peerHeading->setText(tr("Select a peer to view detailed information."));
-        return;
-    }
-    const auto stats = selected_peers.first().data(PeerTableModel::StatsRole).value<CNodeCombinedStats*>();
     // update the detail ui with latest node information
     QString peerAddrDetails(QString::fromStdString(stats->nodeStats.addrName) + " ");
-    peerAddrDetails += tr("(peer id: %1)").arg(QString::number(stats->nodeStats.nodeid));
+    peerAddrDetails += tr("(node id: %1)").arg(QString::number(stats->nodeStats.nodeid));
     if (!stats->nodeStats.addrLocal.empty())
         peerAddrDetails += "<br />" + tr("via %1").arg(QString::fromStdString(stats->nodeStats.addrLocal));
     ui->peerHeading->setText(peerAddrDetails);
     ui->peerServices->setText(GUIUtil::formatServicesStr(stats->nodeStats.nServices));
-    ui->peerRelayTxes->setText(stats->nodeStats.fRelayTxes ? ts.yes : ts.no);
-    QString bip152_hb_settings;
-    if (stats->nodeStats.m_bip152_highbandwidth_to) bip152_hb_settings = ts.to;
-    if (stats->nodeStats.m_bip152_highbandwidth_from) bip152_hb_settings += (bip152_hb_settings.isEmpty() ? ts.from : QLatin1Char('/') + ts.from);
-    if (bip152_hb_settings.isEmpty()) bip152_hb_settings = ts.no;
-    ui->peerHighBandwidth->setText(bip152_hb_settings);
-    const int64_t time_now{GetSystemTimeInSeconds()};
-    ui->peerConnTime->setText(GUIUtil::formatDurationStr(time_now - stats->nodeStats.nTimeConnected));
-    ui->peerLastBlock->setText(TimeDurationField(time_now, stats->nodeStats.nLastBlockTime));
-    ui->peerLastTx->setText(TimeDurationField(time_now, stats->nodeStats.nLastTXTime));
-    ui->peerLastSend->setText(TimeDurationField(time_now, stats->nodeStats.nLastSend));
-    ui->peerLastRecv->setText(TimeDurationField(time_now, stats->nodeStats.nLastRecv));
+    ui->peerLastSend->setText(stats->nodeStats.nLastSend ? GUIUtil::formatDurationStr(GetSystemTimeInSeconds() - stats->nodeStats.nLastSend) : tr("never"));
+    ui->peerLastRecv->setText(stats->nodeStats.nLastRecv ? GUIUtil::formatDurationStr(GetSystemTimeInSeconds() - stats->nodeStats.nLastRecv) : tr("never"));
     ui->peerBytesSent->setText(GUIUtil::formatBytes(stats->nodeStats.nSendBytes));
     ui->peerBytesRecv->setText(GUIUtil::formatBytes(stats->nodeStats.nRecvBytes));
-    ui->peerPingTime->setText(GUIUtil::formatPingTime(stats->nodeStats.m_last_ping_time));
-    ui->peerMinPing->setText(GUIUtil::formatPingTime(stats->nodeStats.m_min_ping_time));
+    ui->peerConnTime->setText(GUIUtil::formatDurationStr(GetSystemTimeInSeconds() - stats->nodeStats.nTimeConnected));
+    ui->peerPingTime->setText(GUIUtil::formatPingTime(stats->nodeStats.m_ping_usec));
+    ui->peerPingWait->setText(GUIUtil::formatPingTime(stats->nodeStats.m_ping_wait_usec));
+    ui->peerMinPing->setText(GUIUtil::formatPingTime(stats->nodeStats.m_min_ping_usec));
     ui->timeoffset->setText(GUIUtil::formatTimeOffset(stats->nodeStats.nTimeOffset));
     ui->peerVersion->setText(QString::number(stats->nodeStats.nVersion));
     ui->peerSubversion->setText(QString::fromStdString(stats->nodeStats.cleanSubVer));
-    ui->peerConnectionType->setText(GUIUtil::ConnectionTypeToQString(stats->nodeStats.m_conn_type, /* prepend_direction */ true));
-    ui->peerNetwork->setText(GUIUtil::NetworkToQString(stats->nodeStats.m_network));
+    ui->peerDirection->setText(stats->nodeStats.fInbound ? tr("Inbound") : tr("Outbound"));
+    ui->peerHeight->setText(QString::number(stats->nodeStats.nStartingHeight));
     if (stats->nodeStats.m_permissionFlags == PF_NONE) {
-        ui->peerPermissions->setText(ts.na);
+        ui->peerPermissions->setText(tr("N/A"));
     } else {
         QStringList permissions;
         for (const auto& permission : NetPermissions::ToStrings(stats->nodeStats.m_permissionFlags)) {
@@ -1142,28 +1132,25 @@ void RPCConsole::updateDetailWidget()
         }
         ui->peerPermissions->setText(permissions.join(" & "));
     }
-    ui->peerMappedAS->setText(stats->nodeStats.m_mapped_as != 0 ? QString::number(stats->nodeStats.m_mapped_as) : ts.na);
+    ui->peerMappedAS->setText(stats->nodeStats.m_mapped_as != 0 ? QString::number(stats->nodeStats.m_mapped_as) : tr("N/A"));
 
     // This check fails for example if the lock was busy and
     // nodeStateStats couldn't be fetched.
     if (stats->fNodeStateStatsAvailable) {
         // Sync height is init to -1
-        if (stats->nodeStateStats.nSyncHeight > -1) {
+        if (stats->nodeStateStats.nSyncHeight > -1)
             ui->peerSyncHeight->setText(QString("%1").arg(stats->nodeStateStats.nSyncHeight));
-        } else {
-            ui->peerSyncHeight->setText(ts.unknown);
-        }
+        else
+            ui->peerSyncHeight->setText(tr("Unknown"));
+
         // Common height is init to -1
-        if (stats->nodeStateStats.nCommonHeight > -1) {
+        if (stats->nodeStateStats.nCommonHeight > -1)
             ui->peerCommonHeight->setText(QString("%1").arg(stats->nodeStateStats.nCommonHeight));
-        } else {
-            ui->peerCommonHeight->setText(ts.unknown);
-        }
-        ui->peerHeight->setText(QString::number(stats->nodeStateStats.m_starting_height));
-        ui->peerPingWait->setText(GUIUtil::formatPingTime(stats->nodeStateStats.m_ping_wait));
+        else
+            ui->peerCommonHeight->setText(tr("Unknown"));
     }
 
-    ui->peersTabRightPanel->show();
+    ui->detailWidget->show();
 }
 
 void RPCConsole::resizeEvent(QResizeEvent *event)
@@ -1226,9 +1213,19 @@ void RPCConsole::banSelectedNode(int bantime)
     if (!clientModel)
         return;
 
-    for (const QModelIndex& peer : GUIUtil::getEntryData(ui->peerWidget, PeerTableModel::NetNodeId)) {
+    // Get selected peer addresses
+    QList<QModelIndex> nodes = GUIUtil::getEntryData(ui->peerWidget, PeerTableModel::NetNodeId);
+    for(int i = 0; i < nodes.count(); i++)
+    {
+        // Get currently selected peer address
+        NodeId id = nodes.at(i).data().toLongLong();
+
+        // Get currently selected peer address
+        int detailNodeRow = clientModel->getPeerTableModel()->getRowByNodeId(id);
+        if (detailNodeRow < 0) return;
+
         // Find possible nodes, ban it and clear the selected node
-        const auto stats = peer.data(PeerTableModel::StatsRole).value<CNodeCombinedStats*>();
+        const CNodeCombinedStats *stats = clientModel->getPeerTableModel()->getNodeStats(detailNodeRow);
         if (stats) {
             m_node.ban(stats->nodeStats.addr, bantime);
             m_node.disconnectByAddress(stats->nodeStats.addr);
@@ -1263,7 +1260,8 @@ void RPCConsole::clearSelectedNode()
 {
     ui->peerWidget->selectionModel()->clearSelection();
     cachedNodeids.clear();
-    updateDetailWidget();
+    ui->detailWidget->hide();
+    ui->peerHeading->setText(tr("Select a peer to view detailed information."));
 }
 
 void RPCConsole::showOrHideBanTableIfRequired()

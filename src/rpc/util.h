@@ -1,9 +1,9 @@
-// Copyright (c) 2017-2021 The Bitcoin Core developers
+// Copyright (c) 2017-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_UTIL_H
-#define BITCOIN_RPC_UTIL_H
+#ifndef TOKYOCOIN_RPC_UTIL_H
+#define TOKYOCOIN_RPC_UTIL_H
 
 #include <node/coinstats.h>
 #include <node/transaction.h>
@@ -19,8 +19,9 @@
 #include <util/check.h>
 
 #include <string>
-#include <variant>
 #include <vector>
+
+#include <boost/variant.hpp>
 
 /**
  * String used to describe UNIX epoch time in documentation, factored out to a
@@ -76,6 +77,8 @@ extern uint256 ParseHashV(const UniValue& v, std::string strName);
 extern uint256 ParseHashO(const UniValue& o, std::string strKey);
 extern std::vector<unsigned char> ParseHexV(const UniValue& v, std::string strName);
 extern std::vector<unsigned char> ParseHexO(const UniValue& o, std::string strKey);
+
+CoinStatsHashType ParseHashType(const UniValue& param, const CoinStatsHashType default_type);
 
 extern CAmount AmountFromValue(const UniValue& value);
 extern std::string HelpExampleCli(const std::string& methodname, const std::string& args);
@@ -141,7 +144,7 @@ struct RPCArg {
          */
         OMITTED,
     };
-    using Fallback = std::variant<Optional, /* default value for optional args */ std::string>;
+    using Fallback = boost::variant<Optional, /* default value for optional args */ std::string>;
     const std::string m_names; //!< The name of the arg (can be empty for inner args, can contain multiple aliases separated by | for named request arguments)
     const Type m_type;
     const bool m_hidden;
@@ -223,7 +226,6 @@ struct RPCResult {
         NUM,
         BOOL,
         NONE,
-        ANY,        //!< Special type to disable type checks (for testing only)
         STR_AMOUNT, //!< Special string to represent a floating point amount
         STR_HEX,    //!< Special string with only hex chars
         OBJ_DYN,    //!< Special dictionary with keys that are not literals
@@ -296,8 +298,6 @@ struct RPCResult {
     std::string ToStringObj() const;
     /** Return the description string, including the result type. */
     std::string ToDescriptionString() const;
-    /** Check whether the result JSON type matches. */
-    bool MatchesType(const UniValue& result) const;
 };
 
 struct RPCResults {
@@ -336,12 +336,24 @@ public:
     using RPCMethodImpl = std::function<UniValue(const RPCHelpMan&, const JSONRPCRequest&)>;
     RPCHelpMan(std::string name, std::string description, std::vector<RPCArg> args, RPCResults results, RPCExamples examples, RPCMethodImpl fun);
 
-    UniValue HandleRequest(const JSONRPCRequest& request) const;
     std::string ToString() const;
-    /** Return the named args that need to be converted from string to another JSON type */
-    UniValue GetArgMap() const;
+    UniValue HandleRequest(const JSONRPCRequest& request)
+    {
+        Check(request);
+        return m_fun(*this, request);
+    }
     /** If the supplied number of args is neither too small nor too high */
     bool IsValidNumArgs(size_t num_args) const;
+    /**
+     * Check if the given request is valid according to this command or if
+     * the user is asking for help information, and throw help when appropriate.
+     */
+    inline void Check(const JSONRPCRequest& request) const {
+        if (request.fHelp || !IsValidNumArgs(request.params.size())) {
+            throw std::runtime_error(ToString());
+        }
+    }
+
     std::vector<std::string> GetArgNames() const;
 
     const std::string m_name;
@@ -354,4 +366,4 @@ private:
     const RPCExamples m_examples;
 };
 
-#endif // BITCOIN_RPC_UTIL_H
+#endif // TOKYOCOIN_RPC_UTIL_H

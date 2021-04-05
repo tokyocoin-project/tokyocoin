@@ -1,27 +1,28 @@
-// Copyright (c) 2019-2020 The Bitcoin Core developers
+// Copyright (c) 2019-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <test/fuzz/fuzz.h>
 
 #include <node/psbt.h>
+#include <optional.h>
 #include <psbt.h>
 #include <pubkey.h>
 #include <script/script.h>
 #include <streams.h>
+#include <util/memory.h>
 #include <version.h>
 
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <vector>
 
-void initialize_psbt()
+void initialize()
 {
     static const ECCVerifyHandle verify_handle;
 }
 
-FUZZ_TARGET_INIT(psbt, initialize_psbt)
+void test_one_input(const std::vector<uint8_t>& buffer)
 {
     PartiallySignedTransaction psbt_mut;
     const std::string raw_psbt{buffer.begin(), buffer.end()};
@@ -39,7 +40,7 @@ FUZZ_TARGET_INIT(psbt, initialize_psbt)
 
     (void)psbt.IsNull();
 
-    std::optional<CMutableTransaction> tx = psbt.tx;
+    Optional<CMutableTransaction> tx = psbt.tx;
     if (tx) {
         const CMutableTransaction& mtx = *tx;
         const PartiallySignedTransaction psbt_from_tx{mtx};

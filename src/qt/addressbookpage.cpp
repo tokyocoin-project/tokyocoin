@@ -1,9 +1,9 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2019 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/tokyocoin-config.h>
 #endif
 
 #include <qt/addressbookpage.h>
@@ -56,7 +56,7 @@ protected:
 };
 
 AddressBookPage::AddressBookPage(const PlatformStyle *platformStyle, Mode _mode, Tabs _tab, QWidget *parent) :
-    QDialog(parent, GUIUtil::dialog_flags),
+    QDialog(parent),
     ui(new Ui::AddressBookPage),
     model(nullptr),
     mode(_mode),
@@ -101,12 +101,12 @@ AddressBookPage::AddressBookPage(const PlatformStyle *platformStyle, Mode _mode,
     switch(tab)
     {
     case SendingTab:
-        ui->labelExplanation->setText(tr("These are your Bitcoin addresses for sending payments. Always check the amount and the receiving address before sending coins."));
+        ui->labelExplanation->setText(tr("These are your Tokyocoin addresses for sending payments. Always check the amount and the receiving address before sending coins."));
         ui->deleteAddress->setVisible(true);
         ui->newAddress->setVisible(true);
         break;
     case ReceivingTab:
-        ui->labelExplanation->setText(tr("These are your Bitcoin addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.\nSigning is only possible with addresses of the type 'legacy'."));
+        ui->labelExplanation->setText(tr("These are your Tokyocoin addresses for receiving payments. Use the 'Create new receiving address' button in the receive tab to create new addresses.\nSigning is only possible with addresses of the type 'legacy'."));
         ui->deleteAddress->setVisible(false);
         ui->newAddress->setVisible(false);
         break;
@@ -295,7 +295,7 @@ void AddressBookPage::on_exportButton_clicked()
     // CSV is currently the only supported format
     QString filename = GUIUtil::getSaveFileName(this,
         tr("Export Address List"), QString(),
-        tr("Comma separated file", "Name of CSV file format") + QLatin1String(" (*.csv)"), nullptr);
+        tr("Comma separated file (*.csv)"), nullptr);
 
     if (filename.isNull())
         return;

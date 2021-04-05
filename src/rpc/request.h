@@ -1,15 +1,18 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2019 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_REQUEST_H
-#define BITCOIN_RPC_REQUEST_H
+#ifndef TOKYOCOIN_RPC_REQUEST_H
+#define TOKYOCOIN_RPC_REQUEST_H
 
-#include <any>
 #include <string>
 
 #include <univalue.h>
+
+namespace util {
+class Ref;
+} // namespace util
 
 UniValue JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);
 UniValue JSONRPCReplyObj(const UniValue& result, const UniValue& error, const UniValue& id);
@@ -31,19 +34,19 @@ public:
     UniValue id;
     std::string strMethod;
     UniValue params;
-    enum Mode { EXECUTE, GET_HELP, GET_ARGS } mode = EXECUTE;
+    bool fHelp;
     std::string URI;
     std::string authUser;
     std::string peerAddr;
-    const std::any& context;
+    const util::Ref& context;
 
-    explicit JSONRPCRequest(const std::any& context) : id(NullUniValue), params(NullUniValue), context(context) {}
+    JSONRPCRequest(const util::Ref& context) : id(NullUniValue), params(NullUniValue), fHelp(false), context(context) {}
 
     //! Initializes request information from another request object and the
     //! given context. The implementation should be updated if any members are
     //! added or removed above.
-    JSONRPCRequest(const JSONRPCRequest& other, const std::any& context)
-        : id(other.id), strMethod(other.strMethod), params(other.params), mode(other.mode), URI(other.URI),
+    JSONRPCRequest(const JSONRPCRequest& other, const util::Ref& context)
+        : id(other.id), strMethod(other.strMethod), params(other.params), fHelp(other.fHelp), URI(other.URI),
           authUser(other.authUser), peerAddr(other.peerAddr), context(context)
     {
     }
@@ -51,4 +54,4 @@ public:
     void parse(const UniValue& valRequest);
 };
 
-#endif // BITCOIN_RPC_REQUEST_H
+#endif // TOKYOCOIN_RPC_REQUEST_H

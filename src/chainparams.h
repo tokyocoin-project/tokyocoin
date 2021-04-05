@@ -1,10 +1,10 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINPARAMS_H
-#define BITCOIN_CHAINPARAMS_H
+#ifndef TOKYOCOIN_CHAINPARAMS_H
+#define TOKYOCOIN_CHAINPARAMS_H
 
 #include <chainparamsbase.h>
 #include <consensus/params.h>
@@ -31,26 +31,6 @@ struct CCheckpointData {
 };
 
 /**
- * Holds configuration for use during UTXO snapshot load and validation. The contents
- * here are security critical, since they dictate which UTXO snapshots are recognized
- * as valid.
- */
-struct AssumeutxoData {
-    //! The expected hash of the deserialized UTXO set.
-    const uint256 hash_serialized;
-
-    //! Used to populate the nChainTx value, which is used during BlockManager::LoadBlockIndex().
-    //!
-    //! We need to hardcode the value here because this is computed cumulatively using block data,
-    //! which we do not necessarily have at the time of snapshot load.
-    const unsigned int nChainTx;
-};
-
-std::ostream& operator<<(std::ostream& o, const AssumeutxoData& aud);
-
-using MapAssumeutxo = std::map<int, const AssumeutxoData>;
-
-/**
  * Holds various statistics on transactions within a chain. Used to estimate
  * verification progress during chain sync.
  *
@@ -64,7 +44,10 @@ struct ChainTxData {
 
 /**
  * CChainParams defines various tweakable parameters of a given instance of the
- * Bitcoin system.
+ * Tokyocoin system. There are three: the main network on which people trade goods
+ * and services, the public test network which gets reset from time to time and
+ * a regression test mode which is intended for private networks only. It has
+ * minimal difficulty to ensure that blocks can be found instantly.
  */
 class CChainParams
 {
@@ -81,7 +64,7 @@ public:
 
     const Consensus::Params& GetConsensus() const { return consensus; }
     const CMessageHeader::MessageStartChars& MessageStart() const { return pchMessageStart; }
-    uint16_t GetDefaultPort() const { return nDefaultPort; }
+    int GetDefaultPort() const { return nDefaultPort; }
 
     const CBlock& GenesisBlock() const { return genesis; }
     /** Default value for -checkmempool and -checkblockindex argument */
@@ -107,18 +90,13 @@ public:
     const std::string& Bech32HRP() const { return bech32_hrp; }
     const std::vector<SeedSpec6>& FixedSeeds() const { return vFixedSeeds; }
     const CCheckpointData& Checkpoints() const { return checkpointData; }
-
-    //! Get allowed assumeutxo configuration.
-    //! @see ChainstateManager
-    const MapAssumeutxo& Assumeutxo() const { return m_assumeutxo_data; }
-
     const ChainTxData& TxData() const { return chainTxData; }
 protected:
     CChainParams() {}
 
     Consensus::Params consensus;
     CMessageHeader::MessageStartChars pchMessageStart;
-    uint16_t nDefaultPort;
+    int nDefaultPort;
     uint64_t nPruneAfterHeight;
     uint64_t m_assumed_blockchain_size;
     uint64_t m_assumed_chain_state_size;
@@ -133,7 +111,6 @@ protected:
     bool m_is_test_chain;
     bool m_is_mockable_chain;
     CCheckpointData checkpointData;
-    MapAssumeutxo m_assumeutxo_data;
     ChainTxData chainTxData;
 };
 
@@ -156,4 +133,4 @@ const CChainParams &Params();
  */
 void SelectParams(const std::string& chain);
 
-#endif // BITCOIN_CHAINPARAMS_H
+#endif // TOKYOCOIN_CHAINPARAMS_H

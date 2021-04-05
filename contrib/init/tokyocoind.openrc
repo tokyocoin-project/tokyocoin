@@ -1,0 +1,92 @@
+#!/sbin/openrc-run
+
+# backward compatibility for existing gentoo layout 
+#
+if [ -d "/var/lib/tokyocoin/.tokyocoin" ]; then
+	TOKYOCOIND_DEFAULT_DATADIR="/var/lib/tokyocoin/.tokyocoin"
+else
+	TOKYOCOIND_DEFAULT_DATADIR="/var/lib/tokyocoind"
+fi
+
+TOKYOCOIND_CONFIGFILE=${TOKYOCOIND_CONFIGFILE:-/etc/tokyocoin/tokyocoin.conf}
+TOKYOCOIND_PIDDIR=${TOKYOCOIND_PIDDIR:-/var/run/tokyocoind}
+TOKYOCOIND_PIDFILE=${TOKYOCOIND_PIDFILE:-${TOKYOCOIND_PIDDIR}/tokyocoind.pid}
+TOKYOCOIND_DATADIR=${TOKYOCOIND_DATADIR:-${TOKYOCOIND_DEFAULT_DATADIR}}
+TOKYOCOIND_USER=${TOKYOCOIND_USER:-${TOKYOCOIN_USER:-tokyocoin}}
+TOKYOCOIND_GROUP=${TOKYOCOIND_GROUP:-tokyocoin}
+TOKYOCOIND_BIN=${TOKYOCOIND_BIN:-/usr/bin/tokyocoind}
+TOKYOCOIND_NICE=${TOKYOCOIND_NICE:-${NICELEVEL:-0}}
+TOKYOCOIND_OPTS="${TOKYOCOIND_OPTS:-${TOKYOCOIN_OPTS}}"
+
+name="Tokyocoin Core Daemon"
+description="Tokyocoin cryptocurrency P2P network daemon"
+
+command="/usr/bin/tokyocoind"
+command_args="-pid=\"${TOKYOCOIND_PIDFILE}\" \
+		-conf=\"${TOKYOCOIND_CONFIGFILE}\" \
+		-datadir=\"${TOKYOCOIND_DATADIR}\" \
+		-daemon \
+		${TOKYOCOIND_OPTS}"
+
+required_files="${TOKYOCOIND_CONFIGFILE}"
+start_stop_daemon_args="-u ${TOKYOCOIND_USER} \
+			-N ${TOKYOCOIND_NICE} -w 2000"
+pidfile="${TOKYOCOIND_PIDFILE}"
+
+# The retry schedule to use when stopping the daemon. Could be either
+# a timeout in seconds or multiple signal/timeout pairs (like
+# "SIGKILL/180 SIGTERM/300")
+retry="${TOKYOCOIND_SIGTERM_TIMEOUT}"
+
+depend() {
+	need localmount net
+}
+
+# verify
+# 1) that the datadir exists and is writable (or create it)
+# 2) that a directory for the pid exists and is writable
+# 3) ownership and permissions on the config file
+start_pre() {
+	checkpath \
+	-d \
+	--mode 0750 \
+	--owner "${TOKYOCOIND_USER}:${TOKYOCOIND_GROUP}" \
+	"${TOKYOCOIND_DATADIR}"
+
+	checkpath \
+	-d \
+	--mode 0755 \
+	--owner "${TOKYOCOIND_USER}:${TOKYOCOIND_GROUP}" \
+	"${TOKYOCOIND_PIDDIR}"
+
+	checkpath -f \
+	-o ${TOKYOCOIND_USER}:${TOKYOCOIND_GROUP} \
+	-m 0660 \
+	${TOKYOCOIND_CONFIGFILE}
+
+	checkconfig || return 1
+}
+
+checkconfig()
+{
+	if ! grep -qs '^rpcpassword=' "${TOKYOCOIND_CONFIGFILE}" ; then
+		eerror ""
+		eerror "ERROR: You must set a secure rpcpassword to run tokyocoind."
+		eerror "The setting must appear in ${TOKYOCOIND_CONFIGFILE}"
+		eerror ""
+		eerror "This password is security critical to securing wallets "
+		eerror "and must not be the same as the rpcuser setting."
+		eerror "You can generate a suitable random password using the following "
+		eerror "command from the shell:"
+		eerror ""
+		eerror "bash -c 'tr -dc a-zA-Z0-9 < /dev/urandom | head -c32 && echo'"
+		eerror ""
+		eerror "It is recommended that you also set alertnotify so you are "
+		eerror "notified of problems:"
+		eerror ""
+		eerror "ie: alertnotify=echo %%s | mail -s \"Tokyocoin Alert\"" \
+			"admin@foo.com"
+		eerror ""
+		return 1
+	fi
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2019 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,7 +16,7 @@
 #include <QPainter>
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h> /* for USE_QRCODE */
+#include <config/tokyocoin-config.h> /* for USE_QRCODE */
 #endif
 
 #ifdef USE_QRCODE
@@ -98,12 +98,15 @@ bool QRImageWidget::setQR(const QString& data, const QString& text)
 
 QImage QRImageWidget::exportImage()
 {
-    return GUIUtil::GetImage(this);
+    if(!pixmap())
+        return QImage();
+    return pixmap()->toImage();
 }
 
 void QRImageWidget::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && GUIUtil::HasPixmap(this)) {
+    if(event->button() == Qt::LeftButton && pixmap())
+    {
         event->accept();
         QMimeData *mimeData = new QMimeData;
         mimeData->setImageData(exportImage());
@@ -118,11 +121,9 @@ void QRImageWidget::mousePressEvent(QMouseEvent *event)
 
 void QRImageWidget::saveImage()
 {
-    if (!GUIUtil::HasPixmap(this))
+    if(!pixmap())
         return;
-    QString fn = GUIUtil::getSaveFileName(
-        this, tr("Save QR Code"), QString(),
-        tr("PNG Image", "Name of PNG file format") + QLatin1String(" (*.png)"), nullptr);
+    QString fn = GUIUtil::getSaveFileName(this, tr("Save QR Code"), QString(), tr("PNG Image (*.png)"), nullptr);
     if (!fn.isEmpty())
     {
         exportImage().save(fn);
@@ -131,14 +132,14 @@ void QRImageWidget::saveImage()
 
 void QRImageWidget::copyImage()
 {
-    if (!GUIUtil::HasPixmap(this))
+    if(!pixmap())
         return;
     QApplication::clipboard()->setImage(exportImage());
 }
 
 void QRImageWidget::contextMenuEvent(QContextMenuEvent *event)
 {
-    if (!GUIUtil::HasPixmap(this))
+    if(!pixmap())
         return;
     contextMenu->exec(event->globalPos());
 }

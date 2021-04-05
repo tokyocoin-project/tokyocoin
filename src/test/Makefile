@@ -1,6 +1,6 @@
 all:
-	$(MAKE) -C .. bitcoin_test
+	$(MAKE) -C .. tokyocoin_test
 clean:
-	$(MAKE) -C .. bitcoin_test_clean
+	$(MAKE) -C .. tokyocoin_test_clean
 check:
-	$(MAKE) -C .. bitcoin_test_check
+	$(MAKE) -C .. tokyocoin_test_check

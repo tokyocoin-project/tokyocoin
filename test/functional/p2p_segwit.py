@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2016-2020 The Bitcoin Core developers
+# Copyright (c) 2016-2020 The Tokyocoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test segwit transactions and blocks on P2P network."""
@@ -37,6 +37,7 @@ from test_framework.messages import (
     msg_tx,
     msg_block,
     msg_no_witness_tx,
+    msg_verack,
     ser_uint256,
     ser_vector,
     sha256,
@@ -77,7 +78,7 @@ from test_framework.script import (
     LegacySignatureHash,
     hash160,
 )
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import TokyocoinTestFramework
 from test_framework.util import (
     assert_equal,
     softfork_active,
@@ -145,7 +146,7 @@ def test_witness_block(node, p2p, block, accepted, with_witness=True, reason=Non
 
 class TestP2PConn(P2PInterface):
     def __init__(self, wtxidrelay=False):
-        super().__init__(wtxidrelay=wtxidrelay)
+        super().__init__()
         self.getdataset = set()
         self.last_wtxidrelay = []
         self.lastgetdata = []
@@ -155,6 +156,13 @@ class TestP2PConn(P2PInterface):
     # We'll send the getdata messages explicitly in the test logic.
     def on_inv(self, message):
         pass
+
+    def on_version(self, message):
+        if self.wtxidrelay:
+            super().on_version(message)
+        else:
+            self.send_message(msg_verack())
+            self.nServices = message.nServices
 
     def on_getdata(self, message):
         self.lastgetdata = message.inv
@@ -206,7 +214,7 @@ class TestP2PConn(P2PInterface):
         self.wait_for_block(blockhash, timeout)
         return self.last_message["block"].block
 
-class SegWitTest(BitcoinTestFramework):
+class SegWitTest(TokyocoinTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 3
@@ -686,35 +694,13 @@ class SegWitTest(BitcoinTestFramework):
         if not self.segwit_active:
             # Just check mempool acceptance, but don't add the transaction to the mempool, since witness is disallowed
             # in blocks and the tx is impossible to mine right now.
-            assert_equal(
-                self.nodes[0].testmempoolaccept([tx3.serialize_with_witness().hex()]),
-                [{
-                    'txid': tx3.hash,
-                    'wtxid': tx3.getwtxid(),
-                    'allowed': True,
-                    'vsize': tx3.get_vsize(),
-                    'fees': {
-                        'base': Decimal('0.00001000'),
-                    },
-                }],
-            )
+            assert_equal(self.nodes[0].testmempoolaccept([tx3.serialize_with_witness().hex()]), [{'txid': tx3.hash, 'allowed': True, 'vsize': tx3.get_vsize(), 'fees': { 'base': Decimal('0.00001000')}}])
             # Create the same output as tx3, but by replacing tx
             tx3_out = tx3.vout[0]
             tx3 = tx
             tx3.vout = [tx3_out]
             tx3.rehash()
-            assert_equal(
-                self.nodes[0].testmempoolaccept([tx3.serialize_with_witness().hex()]),
-                [{
-                    'txid': tx3.hash,
-                    'wtxid': tx3.getwtxid(),
-                    'allowed': True,
-                    'vsize': tx3.get_vsize(),
-                    'fees': {
-                        'base': Decimal('0.00011000'),
-                    },
-                }],
-            )
+            assert_equal(self.nodes[0].testmempoolaccept([tx3.serialize_with_witness().hex()]), [{'txid': tx3.hash, 'allowed': True, 'vsize': tx3.get_vsize(), 'fees': { 'base': Decimal('0.00011000')}}])
         test_transaction_acceptance(self.nodes[0], self.test_node, tx3, with_witness=True, accepted=True)
 
         self.nodes[0].generate(1)
@@ -768,7 +754,7 @@ class SegWitTest(BitcoinTestFramework):
         # This transaction should not be accepted into the mempool pre- or
         # post-segwit.  Mempool acceptance will use SCRIPT_VERIFY_WITNESS which
         # will require a witness to spend a witness program regardless of
-        # segwit activation.  Note that older bitcoind's that are not
+        # segwit activation.  Note that older tokyocoind's that are not
         # segwit-aware would also reject this for failing CLEANSTACK.
         with self.nodes[0].assert_debug_log(
                 expected_msgs=(spend_tx.hash, 'was not accepted: non-mandatory-script-verify-flag (Witness program was passed an empty witness)')):
@@ -1024,7 +1010,7 @@ class SegWitTest(BitcoinTestFramework):
         assert_equal('bad-witness-merkle-match', self.nodes[0].submitblock(block.serialize().hex()))
         assert self.nodes[0].getbestblockhash() != block.hash
 
-        # Now redo commitment with the standard nonce, but let bitcoind fill it in.
+        # Now redo commitment with the standard nonce, but let tokyocoind fill it in.
         add_witness_commitment(block, nonce=0)
         block.vtx[0].wit = CTxWitness()
         block.solve()

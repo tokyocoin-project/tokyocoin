@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Tokyocoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -183,7 +183,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "createwallet", 4, "avoid_reuse"},
     { "createwallet", 5, "descriptors"},
     { "createwallet", 6, "load_on_startup"},
-    { "createwallet", 7, "external_signer"},
     { "loadwallet", 1, "load_on_startup"},
     { "unloadwallet", 1, "load_on_startup"},
     { "getnodeaddresses", 0, "count"},
@@ -211,9 +210,14 @@ public:
 
 CRPCConvertTable::CRPCConvertTable()
 {
-    for (const auto& cp : vRPCConvertParams) {
-        members.emplace(cp.methodName, cp.paramIdx);
-        membersByName.emplace(cp.methodName, cp.paramName);
+    const unsigned int n_elem =
+        (sizeof(vRPCConvertParams) / sizeof(vRPCConvertParams[0]));
+
+    for (unsigned int i = 0; i < n_elem; i++) {
+        members.insert(std::make_pair(vRPCConvertParams[i].methodName,
+                                      vRPCConvertParams[i].paramIdx));
+        membersByName.insert(std::make_pair(vRPCConvertParams[i].methodName,
+                                            vRPCConvertParams[i].paramName));
     }
 }
 
